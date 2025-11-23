@@ -1,0 +1,16 @@
+{
+  "category": "Magazine_Subscriptions",
+  "n_reviews": 71497,
+  "n_users": 60144,
+  "n_verified": 58306,
+  "rating_hist": {
+    "5.0": 44620,
+    "4.0": 8206,
+    "1.0": 9685,
+    "2.0": 3953,
+    "3.0": 5033
+  },
+  "helpful_hist": {
+    "0": 71497
+  }
+}

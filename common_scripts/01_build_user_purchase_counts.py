@@ -21,8 +21,6 @@ For each category:
 import argparse
 import gzip
 import json
-import math
-import os
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Dict, List
@@ -51,13 +49,13 @@ def get_repo_root() -> Path:
 
 # Download helpers
 
-def download_if_needed(url: str, dest: Path) -> None:
+def download_if_needed(url: str, dest: Path, force: bool = False) -> None:
     dest.parent.mkdir(parents=True, exist_ok=True)
-    if dest.exists():
+    if dest.exists() and not force:
         print(f"  [exists] {dest}")
         return
 
-    print(f"  [download] {url} -> {dest}")
+    print(f"  [download{' (force)' if force else ''}] {url} -> {dest}")
     with requests.get(url, stream=True, timeout=60) as r:
         r.raise_for_status()
         with open(dest, "wb") as f:
@@ -240,14 +238,15 @@ def save_user_purchases_hist_plot(user_counts: Dict[str, int], out_path: Path, t
 
 # Main per-category processing
 
-def process_category(category: str, raw_dir: Path, processed_dir: Path) -> None:
+def process_category(category: str, raw_dir: Path, processed_dir: Path, cleanup: bool) -> None:
     """
-    Process a single category:
-      - download raw .jsonl.gz files
-      - compute user_counts & EDA stats
-      - save user_counts df + stats + plots
+    Process a single category with granular skipping:
+      - Skip whole category if ALL expected outputs exist
+      - Otherwise, skip individual steps if their outputs exist
+      - Optionally delete gz files at the end (cleanup=True)
     """
     print(f"\n=== Category: {category} ===")
+
     # Paths
     review_url = REVIEW_URL_TEMPLATE.format(category=category)
     meta_url = META_URL_TEMPLATE.format(category=category)
@@ -255,78 +254,160 @@ def process_category(category: str, raw_dir: Path, processed_dir: Path) -> None:
     review_gz_path = raw_dir / "reviews" / f"{category}.jsonl.gz"
     meta_gz_path = raw_dir / "meta" / f"meta_{category}.jsonl.gz"
 
-    # Download raw files if needed
-    download_if_needed(review_url, review_gz_path)
-    download_if_needed(meta_url, meta_gz_path)
-
-    # Process review file
-    review_stats = process_review_file(review_gz_path, category)
-    user_counts = review_stats["user_counts"]
-
-    # Build user_counts DataFrame (ALL users, no filtering)
-    user_counts_rows = [
-        {"user_id": uid, "num_purchases": cnt, "category": category}
-        for uid, cnt in user_counts.items()
-    ]
-    user_counts_df = pd.DataFrame(user_counts_rows)
-
-    # Category-specific processed dir
     cat_proc_dir = processed_dir / category
     cat_proc_dir.mkdir(parents=True, exist_ok=True)
 
-    # Save user_counts
+    # Expected processed outputs
     user_counts_path = cat_proc_dir / f"user_counts_{category}.parquet"
-    user_counts_df.to_parquet(user_counts_path, index=False)
-    print(f"  [save] user_counts -> {user_counts_path}")
-
-    # Save review stats JSON
-    review_stats_out = {
-        "category": category,
-        "n_reviews": review_stats["n_reviews"],
-        "n_users": len(user_counts),
-        "n_verified": review_stats["n_verified"],
-        "rating_hist": dict(review_stats["rating_hist"]),
-        "helpful_hist": dict(review_stats["helpful_hist"]),
-    }
     review_stats_path = cat_proc_dir / f"review_stats_{category}.json"
-    with open(review_stats_path, "w", encoding="utf-8") as f:
-        json.dump(review_stats_out, f, indent=2)
-    print(f"  [save] review_stats -> {review_stats_path}")
-
-    # Plots for reviews
-    save_rating_hist_plot(
-        review_stats["rating_hist"],
-        cat_proc_dir / f"rating_hist_{category}.png",
-        title=f"Rating distribution ({category})",
-    )
-    save_helpful_hist_plot(
-        review_stats["helpful_hist"],
-        cat_proc_dir / f"helpful_votes_hist_{category}.png",
-        title=f"Helpful votes distribution ({category})",
-    )
-    save_user_purchases_hist_plot(
-        user_counts,
-        cat_proc_dir / f"user_purchases_hist_{category}.png",
-        title=f"Purchases per user ({category})",
-    )
-
-    # Process meta file (basic stats)
-    meta_stats_raw = process_meta_file(meta_gz_path)
-    meta_stats_out = {
-        "category": category,
-        "n_items": meta_stats_raw["n_items"],
-        "rating_number_hist": dict(meta_stats_raw["rating_number_hist"]),
-        "price_count": meta_stats_raw["price_count"],
-        "price_mean": (
-            meta_stats_raw["price_sum"] / meta_stats_raw["price_count"]
-            if meta_stats_raw["price_count"] > 0
-            else None
-        ),
-    }
+    rating_hist_png = cat_proc_dir / f"rating_hist_{category}.png"
+    helpful_hist_png = cat_proc_dir / f"helpful_votes_hist_{category}.png"
+    user_purchases_png = cat_proc_dir / f"user_purchases_hist_{category}.png"
     meta_stats_path = cat_proc_dir / f"meta_stats_{category}.json"
-    with open(meta_stats_path, "w", encoding="utf-8") as f:
-        json.dump(meta_stats_out, f, indent=2)
-    print(f"  [save] meta_stats -> {meta_stats_path}")
+
+    expected_outputs = [
+        user_counts_path,
+        review_stats_path,
+        rating_hist_png,
+        helpful_hist_png,
+        user_purchases_png,
+        meta_stats_path,
+    ]
+
+    # --- Category-level skip if everything is already there ---
+    if all(p.exists() for p in expected_outputs):
+        print("  [skip] all processed outputs exist for this category; skipping heavy work.")
+        if cleanup:
+            for p in (review_gz_path, meta_gz_path):
+                if p.exists():
+                    print(f"  [cleanup] removing {p}")
+                    p.unlink()
+        print(f"=== Done category (skipped): {category} ===")
+        return
+
+    # Always ensure gz files are present before any step that might need them
+    download_if_needed(review_url, review_gz_path)
+    download_if_needed(meta_url, meta_gz_path)
+
+    # -----------------------------------------------------------------------
+    # Step 1: ensure review_stats + user_counts exist
+    # -----------------------------------------------------------------------
+    user_counts_df = None
+    rating_hist = None
+    helpful_hist = None
+
+    if user_counts_path.exists() and review_stats_path.exists():
+        print("  [skip] user_counts + review_stats already exist; loading from disk.")
+        # Load from existing artifacts
+        user_counts_df = pd.read_parquet(user_counts_path)
+        with open(review_stats_path, "r", encoding="utf-8") as f:
+            stats = json.load(f)
+        rating_hist = Counter({float(k): v for k, v in stats["rating_hist"].items()})
+        helpful_hist = Counter({int(k): v for k, v in stats["helpful_hist"].items()})
+    else:
+        print("  [run] computing review_stats + user_counts from gz.")
+        # (Re)compute from gz, with re-download protection for truncated file
+        try:
+            review_stats_raw = process_review_file(review_gz_path, category)
+        except EOFError:
+            print(f"  [warn] Detected truncated gzip for {category}, re-downloading...")
+            download_if_needed(review_url, review_gz_path, force=True)
+            review_stats_raw = process_review_file(review_gz_path, category)
+
+        user_counts = review_stats_raw["user_counts"]
+        rating_hist = review_stats_raw["rating_hist"]
+        helpful_hist = review_stats_raw["helpful_hist"]
+
+        # Build DataFrame for ALL users, no filtering
+        user_counts_rows = [
+            {"user_id": uid, "num_purchases": cnt, "category": category}
+            for uid, cnt in user_counts.items()
+        ]
+        user_counts_df = pd.DataFrame(user_counts_rows)
+        user_counts_df.to_parquet(user_counts_path, index=False)
+        print(f"  [save] user_counts -> {user_counts_path}")
+
+        # Save review stats JSON
+        review_stats_out = {
+            "category": category,
+            "n_reviews": review_stats_raw["n_reviews"],
+            "n_users": len(user_counts),
+            "n_verified": review_stats_raw["n_verified"],
+            "rating_hist": dict(rating_hist),
+            "helpful_hist": dict(helpful_hist),
+        }
+        with open(review_stats_path, "w", encoding="utf-8") as f:
+            json.dump(review_stats_out, f, indent=2)
+        print(f"  [save] review_stats -> {review_stats_path}")
+
+    # -----------------------------------------------------------------------
+    # Step 2: ensure plots exist (rating, helpful, user_purchases)
+    # -----------------------------------------------------------------------
+    if not rating_hist_png.exists():
+        save_rating_hist_plot(
+            rating_hist,
+            rating_hist_png,
+            title=f"Rating distribution ({category})",
+        )
+    else:
+        print(f"  [skip] rating hist plot already exists: {rating_hist_png}")
+
+    if not helpful_hist_png.exists():
+        save_helpful_hist_plot(
+            helpful_hist,
+            helpful_hist_png,
+            title=f"Helpful votes distribution ({category})",
+        )
+    else:
+        print(f"  [skip] helpful votes plot already exists: {helpful_hist_png}")
+
+    if not user_purchases_png.exists():
+        # user_counts_df is guaranteed to be loaded at this point
+        save_user_purchases_hist_plot(
+            dict(zip(user_counts_df["user_id"], user_counts_df["num_purchases"])),
+            user_purchases_png,
+            title=f"Purchases per user ({category})",
+        )
+    else:
+        print(f"  [skip] user purchases plot already exists: {user_purchases_png}")
+
+    # -----------------------------------------------------------------------
+    # Step 3: ensure meta_stats exist
+    # -----------------------------------------------------------------------
+    if meta_stats_path.exists():
+        print(f"  [skip] meta_stats already exist: {meta_stats_path}")
+    else:
+        print("  [run] computing meta_stats from gz.")
+        try:
+            meta_stats_raw = process_meta_file(meta_gz_path)
+        except EOFError:
+            print(f"  [warn] Detected truncated meta gzip for {category}, re-downloading...")
+            download_if_needed(meta_url, meta_gz_path, force=True)
+            meta_stats_raw = process_meta_file(meta_gz_path)
+
+        meta_stats_out = {
+            "category": category,
+            "n_items": meta_stats_raw["n_items"],
+            "rating_number_hist": dict(meta_stats_raw["rating_number_hist"]),
+            "price_count": meta_stats_raw["price_count"],
+            "price_mean": (
+                meta_stats_raw["price_sum"] / meta_stats_raw["price_count"]
+                if meta_stats_raw["price_count"] > 0
+                else None
+            ),
+        }
+        with open(meta_stats_path, "w", encoding="utf-8") as f:
+            json.dump(meta_stats_out, f, indent=2)
+        print(f"  [save] meta_stats -> {meta_stats_path}")
+
+    # -----------------------------------------------------------------------
+    # Cleanup gz files if requested
+    # -----------------------------------------------------------------------
+    if cleanup:
+        for p in (review_gz_path, meta_gz_path):
+            if p.exists():
+                print(f"  [cleanup] removing {p}")
+                p.unlink()
 
     print(f"=== Done category: {category} ===")
 
@@ -353,14 +434,20 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Path to all_categories.txt (default: data/raw/all_categories.txt under repo).",
     )
+    parser.add_argument(
+        "--no-cleanup",
+        action="store_true",
+        help="If set, keep the downloaded .jsonl.gz files instead of deleting them.",
+    )
     return parser.parse_args()
-
 
 def main() -> None:
     args = parse_args()
     repo_root = get_repo_root()
     raw_dir = repo_root / "data" / "raw"
     processed_dir = repo_root / "data" / "processed"
+
+    cleanup = not args.no_cleanup
 
     # Determine categories
     if args.categories:
@@ -377,7 +464,7 @@ def main() -> None:
         print(f"{len(categories)} categories: {categories}")
 
     for cat in categories:
-        process_category(cat, raw_dir=raw_dir, processed_dir=processed_dir)
+        process_category(cat, raw_dir=raw_dir, processed_dir=processed_dir, cleanup=cleanup)
 
 
 if __name__ == "__main__":

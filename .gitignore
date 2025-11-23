@@ -1,2 +1,3 @@
 .venv
 asin2category.json
+*.jsonl.gz
