@@ -1,17 +1,19 @@
 """
 Script 2: Global User Collation + User Importance Scoring
-
-Inputs:
-    data/processed/<Category>/user_counts_<Category>.parquet
-
-Outputs:
-    data/global/user_importance.parquet
-    data/global/top_users.parquet
+Updated per requirements:
+- Save histograms for:
+    * total purchases per user
+    * distinct categories per user
+- Extract top users that satisfy:
+    * importance >= 95th percentile
+    * distinct_categories >= 3
+    * total_purchases >= 3
 """
 
 import pathlib
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 BASE_DIR = pathlib.Path("data/processed")
@@ -19,37 +21,34 @@ OUT_DIR = pathlib.Path("data/global")
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # ---------------------------------------------------------
-# Utility: Compute entropy given row of category counts
+# Compute entropy from category counts
 # ---------------------------------------------------------
 def compute_entropy(counts: np.ndarray) -> float:
     total = counts.sum()
     if total == 0:
         return 0.0
     p = counts / total
-    p = p[p > 0]   # avoid log(0)
+    p = p[p > 0]  # avoid log(0)
     return -(p * np.log(p)).sum()
 
 
 # ---------------------------------------------------------
-# Step 1 — Load all user_counts parquet files from all categories
+# Load all per-category user_count tables
 # ---------------------------------------------------------
 def load_all_user_counts():
-    all_files = list(BASE_DIR.glob("*/user_counts_*.parquet"))
+    files = list(BASE_DIR.glob("*/user_counts_*.parquet"))
 
     dfs = []
-    for f in tqdm(all_files, desc="Loading per-category user_counts"):
-        print(f.name)
-        df = pd.read_parquet(f)
-        dfs.append(df)
+    for f in tqdm(files, desc="Loading user_counts"):
+        dfs.append(pd.read_parquet(f))
 
     return pd.concat(dfs, ignore_index=True)
 
 
 # ---------------------------------------------------------
-# Step 2 — Aggregate into global user/cat matrix
+# Aggregate into global user‐category matrix
 # ---------------------------------------------------------
 def aggregate_user_data(df:pd.DataFrame):
-    # Pivot to create user x category table
     pivot = df.pivot_table(
         index="user_id",
         columns="category",
@@ -58,65 +57,91 @@ def aggregate_user_data(df:pd.DataFrame):
         fill_value=0
     )
 
-    # Compute global stats
     pivot["total_purchases"] = pivot.sum(axis=1)
     pivot["distinct_categories"] = (pivot.drop(columns="total_purchases") > 0).sum(axis=1)
-
     return pivot
 
 
 # ---------------------------------------------------------
-# Step 3 — Compute entropy + importance score
+# Compute user diversity and importance
 # ---------------------------------------------------------
 def compute_user_importance(df:pd.DataFrame):
-    # Extract only category columns (exclude metrics appended later)
     category_cols = [c for c in df.columns if c not in ["total_purchases", "distinct_categories"]]
 
-    entropies = df[category_cols].apply(
-        lambda row: compute_entropy(row.values), axis=1
-    )
-    df["entropy"] = entropies
+    df["entropy"] = df[category_cols].apply(lambda row: compute_entropy(row.values), axis=1)
 
     max_entropy = np.log(len(category_cols))
     df["norm_entropy"] = df["entropy"] / max_entropy
+
     df["importance"] = df["total_purchases"] * (1 + df["norm_entropy"])
 
     return df
 
 
 # ---------------------------------------------------------
-# Step 4 — Extract top users
+# Extract top users with constraints
 # ---------------------------------------------------------
-def extract_top_users(df, percentile=0.95):
-    threshold = df["importance"].quantile(percentile)
-    top_users = df[df["importance"] >= threshold]
-    return top_users
+def extract_top_users(df:pd.DataFrame, percentile=0.95):
+    importance_threshold = df["importance"].quantile(percentile)
+
+    filtered = df[
+        (df["importance"] >= importance_threshold) &
+        (df["total_purchases"] >= 3) &
+        (df["distinct_categories"] >= 3)
+    ]
+
+    return filtered
+
+
+# ---------------------------------------------------------
+# Plot histograms and save to disk
+# ---------------------------------------------------------
+def save_histograms(df:pd.DataFrame):
+    # Total purchases hist
+    plt.figure(figsize=(8, 5))
+    df["total_purchases"].clip(upper=50).hist(bins=50)
+    plt.title("User Total Purchase Counts (clipped at 50)")
+    plt.xlabel("Total Purchases")
+    plt.ylabel("Frequency")
+    plt.tight_layout()
+    plt.savefig(OUT_DIR / "user_total_purchases_hist.png")
+    plt.close()
+
+    # Distinct categories hist
+    plt.figure(figsize=(8, 5))
+    df["distinct_categories"].hist(bins=50)
+    plt.title("Distinct Categories per User")
+    plt.xlabel("Num Categories")
+    plt.ylabel("Frequency")
+    plt.tight_layout()
+    plt.savefig(OUT_DIR / "user_distinct_categories_hist.png")
+    plt.close()
 
 
 # ---------------------------------------------------------
 # Main
 # ---------------------------------------------------------
 def main():
-    print(">>> Loading category user data...")
-    raw_df = load_all_user_counts()
+    print(">>> Loading per-category user data...")
+    raw = load_all_user_counts()
 
-    print(">>> Aggregating to global user table...")
-    user_df = aggregate_user_data(raw_df)
+    print(">>> Aggregating global user table...")
+    user_df = aggregate_user_data(raw)
 
-    print(">>> Computing entropy and importance scores...")
+    print(">>> Generating histograms...")
+    save_histograms(user_df)
+
+    print(">>> Computing user importance...")
     user_df = compute_user_importance(user_df)
 
-    full_out = OUT_DIR / "user_importance.parquet"
-    user_df.to_parquet(full_out)
-    print(f"Saved full user table → {full_out}")
-
-    print(">>> Extracting top users...")
-    top_df = extract_top_users(user_df, percentile=0.95)
+    print(">>> Extracting top users (with min categories=3, min purchases=3)...")
+    top_users = extract_top_users(user_df, percentile=0.95)
 
     top_out = OUT_DIR / "top_users.parquet"
-    top_df.to_parquet(top_out)
-    print(f"Saved top user list → {top_out}")
-    print("\n[ DONE ] User collation + importance computation complete.\n")
+    top_users.to_parquet(top_out)
+    print(f"Saved top users → {top_out}")
+
+    print("\n[ DONE ]\n")
 
 
 if __name__ == "__main__":
