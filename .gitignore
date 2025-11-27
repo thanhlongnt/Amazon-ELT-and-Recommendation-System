@@ -1,3 +1,6 @@
 .venv
 asin2category.json
 *.jsonl.gz
+*.parquet
+client_secrets.json
+client_secret.json

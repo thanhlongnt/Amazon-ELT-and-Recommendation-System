@@ -1,39 +1,64 @@
 #!/usr/bin/env python
 """
-Extract per-review and per-user features for top users (per-category).
+Extract per-review, per-user, and per-item features for top users (per-category).
 
 For each category (or a list of categories):
-  - Load `data/global/top_users.parquet` and build the set of top users
-  - Stream the category review .jsonl.gz and keep only reviews by top users
+  - Load global top_users (importance scores) from data/global/top_users.parquet
+    via the data registry / Google Drive (unless overridden via CLI).
+  - Stream the category review .jsonl.gz and keep only reviews by top users.
   - Produce per-review feature table:
-      `data/processed/<Category>/top_user_reviews_<Category>.parquet`
-    Columns include: `user_id`, `product_id` (asin), `unixReviewTime`, `reviewTime`,
-    `rating`, `helpful_votes`, `verified_purchase`, `review_id`
-  - Produce per-user aggregated features for top users relevant to the category:
-      `data/processed/<Category>/top_user_features_<Category>.parquet`
-    Columns include: `user_id`, `num_purchases_in_category`, plus any global
-    stats present in the supplied `top_users.parquet` (e.g. `total_purchases`).
-  - Save basic EDA outputs (rating/helpful histograms) for the filtered reviews.
+      data/processed/<Category>/top_user_reviews_<Category>.parquet
+  - Produce per-user aggregated features:
+      data/processed/<Category>/top_user_features_<Category>.parquet
+  - Produce per-item aggregated features (from top users only):
+      data/processed/<Category>/top_item_features_<Category>.parquet
+  - Produce EDA outputs:
+      top_user_review_stats_<Category>.json
+      top_users_rating_hist_<Category>.png
+      top_users_helpful_hist_<Category>.png
 
-This script is intentionally similar in structure to `01_build_user_purchase_counts.py`.
+Step-based skipping & Drive integration:
+  - Resync registry at start of script.
+  - For each category:
+      - Use Drive-backed lockfiles under data/locks/03_user_features/.
+      - Try to hydrate processed outputs from Drive to enable skipping.
+      - Skip category if all outputs exist.
+      - For needed steps, ensure raw gz exist via Drive or UCSD download.
+      - Upload processed outputs + lockfiles to Drive.
+      - Optional cleanup of raw gz and/or processed outputs locally.
 """
 
 import argparse
 import gzip
 import json
+import sys
 from collections import Counter, defaultdict
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import matplotlib.pyplot as plt
 import pandas as pd
+
+# Make sure we can import siblings (data_io.py) no matter where we run it from
+THIS_DIR = Path(__file__).resolve().parent
+if str(THIS_DIR) not in sys.path:
+    sys.path.insert(0, str(THIS_DIR))
+
+from data_io import (  # noqa: E402
+    ensure_local,
+    ensure_local_path,
+    resync_registry,
+    upload_to_drive,
+)
 
 
 def get_repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
-# Plot helpers (simple copies tailored for filtered data)
+# --------------------------------------------------------------------
+# Plot helpers
+# --------------------------------------------------------------------
 def save_rating_hist_plot(
     rating_hist: Counter, out_path: Path, title: str
 ) -> None:
@@ -78,6 +103,9 @@ def save_helpful_hist_plot(
     print(f"  [plot] saved {out_path}")
 
 
+# --------------------------------------------------------------------
+# Raw data URLs
+# --------------------------------------------------------------------
 REVIEW_URL_TEMPLATE = (
     "https://mcauleylab.ucsd.edu/public_datasets/data/amazon_2023/raw/"
     "review_categories/{category}.jsonl.gz"
@@ -108,6 +136,9 @@ def download_if_needed(url: str, dest: Path, force: bool = False) -> None:
     print("  [ok] download complete")
 
 
+# --------------------------------------------------------------------
+# CLI handling
+# --------------------------------------------------------------------
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Extract top-user filtered features per category."
@@ -121,18 +152,46 @@ def parse_args() -> argparse.Namespace:
         "--categories-file",
         type=str,
         default=None,
-        help="Path to all_categories.txt (default: data/raw/all_categories.txt under repo).",
+        help=(
+            "Path to all_categories.txt (default: data/raw/all_categories.txt under repo; "
+            "will be fetched from Drive via registry if needed)."
+        ),
     )
     parser.add_argument(
         "--top-users",
         type=str,
         default=None,
-        help="Path to top_users.parquet (default: data/global/top_users.parquet).",
+        help=(
+            "Path to top_users.parquet. "
+            "If omitted, will use data registry entry processed.top_users "
+            "and download from Drive if needed."
+        ),
     )
     parser.add_argument(
         "--no-download",
         action="store_true",
-        help="Don't attempt to download missing raw files; fail if not present.",
+        help="Don't attempt to download missing raw files from UCSD; fail if not present.",
+    )
+    parser.add_argument(
+        "--no-cleanup-raw",
+        action="store_true",
+        help="If set, keep the downloaded .jsonl.gz files instead of deleting them.",
+    )
+    parser.add_argument(
+        "--no-cleanup",
+        action="store_true",
+        help="Alias for --no-cleanup-raw (backwards compatibility).",
+    )
+    parser.add_argument(
+        "--cleanup-processed",
+        choices=["none", "parquet", "all"],
+        default="parquet",
+        help=(
+            "How to clean up processed outputs after uploading to Drive. "
+            "'none' = keep everything; "
+            "'parquet' = remove .parquet only (default); "
+            "'all' = remove parquet, JSON, and PNGs."
+        ),
     )
     return parser.parse_args()
 
@@ -142,148 +201,157 @@ def read_all_categories_from_file(path: Path) -> List[str]:
         return [line.strip() for line in f if line.strip()]
 
 
+# --------------------------------------------------------------------
+# Helpers for top_users and meta
+# --------------------------------------------------------------------
 def load_top_users(path: Path) -> pd.DataFrame:
     df = pd.read_parquet(path)
     # ensure we have a `user_id` column
     if "user_id" in df.columns:
         return df
-    # sometimes parquet preserves index as the index; reset it
     df = df.reset_index()
     if "user_id" not in df.columns:
-        # fall back to first column as user id
         df = df.rename(columns={df.columns[0]: "user_id"})
     return df
 
 
-def process_category(
-    category: str,
-    raw_dir: Path,
-    processed_dir: Path,
-    top_users_df: pd.DataFrame,
-    allow_download: bool,
-):
-    print(f"\n=== Category (top-users filtered): {category} ===")
+def load_item_meta(meta_gz: Path, category: str) -> Dict[str, Dict]:
+    """
+    Load item-level metadata from meta_<Category>.jsonl.gz into a dict:
+      parent_asin -> {item_avg_rating, item_categories}
+    """
+    item_meta: Dict[str, Dict] = {}
+    if not meta_gz.exists():
+        print(
+            f"  [meta] no meta file found for {category} at {meta_gz}; "
+            "continuing without item meta"
+        )
+        return item_meta
 
-    review_gz = raw_dir / "reviews" / f"{category}.jsonl.gz"
-    review_url = REVIEW_URL_TEMPLATE.format(category=category)
-
-    if not review_gz.exists():
-        if allow_download:
-            download_if_needed(review_url, review_gz)
-        else:
-            raise FileNotFoundError(
-                f"Missing review gz for {category}: {review_gz}"
-            )
-
-    cat_proc_dir = processed_dir / category
-    cat_proc_dir.mkdir(parents=True, exist_ok=True)
-
-    out_reviews_parquet = cat_proc_dir / f"top_user_reviews_{category}.parquet"
-    out_user_features = cat_proc_dir / f"top_user_features_{category}.parquet"
-    out_item_features = cat_proc_dir / f"top_item_features_{category}.parquet"
-    out_stats_json = cat_proc_dir / f"top_user_review_stats_{category}.json"
-    rating_png = cat_proc_dir / f"top_users_rating_hist_{category}.png"
-    helpful_png = cat_proc_dir / f"top_users_helpful_hist_{category}.png"
-
-    top_users_set = set(top_users_df["user_id"].astype(str).tolist())
     print(
-        f"  [info] top_users provided: {len(top_users_set)} users; filtering reviews..."
+        f"  [meta] loading meta from {meta_gz} "
+        "(to attach item-level avg rating + categories)"
     )
 
-    # If outputs exist, skip heavy work (but still report)
-    if (
-        out_reviews_parquet.exists()
-        and out_user_features.exists()
-        and out_stats_json.exists()
-    ):
-        print("  [skip] All outputs exist; loading and skipping parsing.")
+    with gzip.open(meta_gz, "rt", encoding="utf-8") as mf:
+        for mline in mf:
+            mline = mline.strip()
+            if not mline:
+                continue
+            mobj = json.loads(mline)
+
+            a = (
+                mobj.get("parent_asin")
+                or mobj.get("asin")
+                or mobj.get("asin")
+            )
+            if not a:
+                continue
+
+            # possible fields for item average rating
+            item_avg = None
+            for k in ("avg_rating", "average_rating", "rating"):
+                v = mobj.get(k)
+                if v is not None:
+                    try:
+                        item_avg = float(v)
+                        break
+                    except Exception:
+                        pass
+
+            # Categories can be nested lists; try to flatten
+            cats = None
+            raw_cats = mobj.get("categories") or mobj.get("category")
+            if raw_cats:
+                if isinstance(raw_cats, list):
+                    flat = []
+                    for el in raw_cats:
+                        if isinstance(el, list):
+                            flat.extend(
+                                [str(x) for x in el if x is not None]
+                            )
+                        else:
+                            flat.append(str(el))
+                    cats = list(dict.fromkeys(flat))
+                else:
+                    cats = [str(raw_cats)]
+
+            item_meta[str(a)] = {
+                "item_avg_rating": item_avg,
+                "item_categories": cats,
+            }
+
+    return item_meta
+
+
+# --------------------------------------------------------------------
+# Raw gz helper (Drive + UCSD)
+# --------------------------------------------------------------------
+def ensure_raw_gzip_or_download(
+    path: Path, url: str, allow_download: bool, repo_root: Path
+) -> None:
+    """
+    Ensure a raw gzip exists locally by:
+      1) Checking local path
+      2) Trying Drive via ensure_local_path (using relative path)
+      3) Falling back to direct HTTP download from UCSD if allowed
+    """
+    if path.exists():
         return
 
+    rel = str(path.relative_to(repo_root))
+    try:
+        print(f"  [data_io] trying Drive for {rel}")
+        ensure_local_path(rel)
+        if path.exists():
+            return
+    except Exception:
+        # No registry entry or download failed -> fall back
+        pass
+
+    if allow_download:
+        download_if_needed(url, path, force=False)
+    else:
+        raise FileNotFoundError(
+            f"Missing {path} and --no-download is set; "
+            "no Drive entry or HTTP download attempted."
+        )
+
+
+def ensure_outputs_from_drive(paths: List[Path], repo_root: Path) -> None:
+    """
+    For each expected output, if it's missing locally but exists in Drive
+    (according to registry), pull it down so we can skip work.
+    """
+    for p in paths:
+        if p.exists():
+            continue
+        rel = str(p.relative_to(repo_root))
+        try:
+            ensure_local_path(rel)
+        except Exception:
+            # No registry entry or download failed – ignore.
+            pass
+
+
+# --------------------------------------------------------------------
+# Core per-category processing
+# --------------------------------------------------------------------
+def parse_reviews_for_top_users(
+    review_gz: Path,
+    top_users_set,
+    item_meta: Dict[str, Dict],
+    category: str,
+) -> Tuple[pd.DataFrame, Counter, Counter, int]:
+    """
+    Stream the review JSONL.gz, filter to top users, attach item meta,
+    and return:
+      reviews_df, rating_hist, helpful_hist, n_users
+    """
     rows = []
     per_user_counts = defaultdict(int)
     rating_hist = Counter()
     helpful_hist = Counter()
-
-    # Try to load meta file for this category so we can attach per-item metadata
-    item_meta = {}
-    meta_gz = raw_dir / "meta" / f"meta_{category}.jsonl.gz"
-    meta_url = META_URL_TEMPLATE.format(category=category)
-    if not meta_gz.exists():
-        if allow_download:
-            # mirror behavior from script 01: attempt to download the meta file
-            try:
-                download_if_needed(meta_url, meta_gz)
-            except Exception as e:
-                print(f"  [warn] failed to download meta for {category}: {e}")
-
-    if meta_gz.exists():
-        print(
-            f"  [meta] loading meta from {meta_gz} (to attach item-level avg rating + categories)"
-        )
-        try:
-            with gzip.open(meta_gz, "rt", encoding="utf-8") as mf:
-                for mline in mf:
-                    mline = mline.strip()
-                    if not mline:
-                        continue
-                    try:
-                        mobj = json.loads(mline)
-                    except Exception:
-                        continue
-                    # meta uses `parent_asin` for the canonical product id in this dataset
-                    a = (
-                        mobj.get("parent_asin")
-                        or mobj.get("asin")
-                        or mobj.get("asin")
-                    )
-                    if not a:
-                        continue
-                    # possible fields for item average rating
-                    item_avg = None
-                    for k in (
-                        "avg_rating",
-                        "average_rating",
-                        "rating",
-                        "rating_number",
-                    ):
-                        v = mobj.get(k)
-                        if v is not None:
-                            try:
-                                item_avg = float(v)
-                                break
-                            except Exception:
-                                pass
-
-                    # Categories can be nested lists; try to flatten
-                    cats = None
-                    raw_cats = mobj.get("categories") or mobj.get("category")
-                    if raw_cats:
-                        # raw_cats might be list of lists or list of strings
-                        if isinstance(raw_cats, list):
-                            flat = []
-                            for el in raw_cats:
-                                if isinstance(el, list):
-                                    flat.extend(
-                                        [str(x) for x in el if x is not None]
-                                    )
-                                else:
-                                    flat.append(str(el))
-                            cats = list(dict.fromkeys(flat))
-                        else:
-                            cats = [str(raw_cats)]
-
-                    item_meta[str(a)] = {
-                        "item_avg_rating": item_avg,
-                        "item_categories": cats,
-                    }
-        except EOFError:
-            print(
-                f"  [warn] truncated meta gzip for {category}; skipping meta load"
-            )
-    else:
-        print(
-            f"  [meta] no meta file found for {category} at {meta_gz}; continuing without item meta"
-        )
 
     with gzip.open(review_gz, "rt", encoding="utf-8") as f:
         for line in f:
@@ -302,7 +370,6 @@ def process_category(
             if user_id not in top_users_set:
                 continue
 
-            # Extract fields defensively (use observed field names from Movies_and_TV)
             product_id = (
                 obj.get("asin")
                 or obj.get("product_id")
@@ -310,7 +377,7 @@ def process_category(
                 or obj.get("id")
             )
             rating = obj.get("rating")
-            # helpful votes: dataset uses `helpful_vote` in this category; accept both
+
             hv = obj.get("helpful_votes", obj.get("helpful_vote", 0))
             try:
                 hv = int(hv)
@@ -318,7 +385,6 @@ def process_category(
                 hv = 0
             hv_clipped = min(hv, 50)
 
-            # timestamp candidates: Movies_and_TV uses `timestamp` (milliseconds)
             unix_time = (
                 obj.get("timestamp")
                 or obj.get("unixReviewTime")
@@ -330,7 +396,6 @@ def process_category(
                 obj.get("verified_purchase") or obj.get("verified") or False
             )
 
-            # attach item meta if available
             im = (
                 item_meta.get(str(product_id), {})
                 if product_id is not None
@@ -361,138 +426,393 @@ def process_category(
             helpful_hist[hv_clipped] += 1
 
     print(
-        f"  [done] filtered reviews rows={len(rows):,}, users_with_reviews={len(per_user_counts):,}"
+        f"  [done] filtered reviews rows={len(rows):,}, "
+        f"users_with_reviews={len(per_user_counts):,}"
     )
-
-    if not rows:
-        print("  [warn] No reviews for top users in this category.")
-        # save empty artifacts to signal processed
-        pd.DataFrame(columns=["user_id"]).to_parquet(out_reviews_parquet)
-        pd.DataFrame(columns=["user_id"]).to_parquet(out_user_features)
-        with open(out_stats_json, "w", encoding="utf-8") as f:
-            json.dump({"n_reviews": 0, "n_users": 0}, f)
-        return
 
     reviews_df = pd.DataFrame(rows)
-    reviews_df.to_parquet(out_reviews_parquet, index=False)
-    print(f"  [save] top-user reviews -> {out_reviews_parquet}")
+    return reviews_df, rating_hist, helpful_hist, len(per_user_counts)
 
-    # Build per-user aggregated features for users present in this category
-    # Compute per-user aggregated features from the filtered reviews_df
-    agg = (
-        reviews_df.groupby("user_id")
-        .agg(
-            num_purchases_in_category=("product_id", "count"),
-            avg_rating_in_category=("rating", "mean"),
-            avg_helpful_vote_in_category=("helpful_votes", "mean"),
-            avg_item_avg_rating=("item_avg_rating", "mean"),
-            first_review_time=("unixReviewTime", "min"),
-            last_review_time=("unixReviewTime", "max"),
+
+def process_category(
+    category: str,
+    raw_dir: Path,
+    processed_dir: Path,
+    top_users_df: pd.DataFrame,
+    allow_download: bool,
+    cleanup_raw: bool,
+    cleanup_processed: str,
+    repo_root: Path,
+):
+    print(f"\n=== Category (top-users filtered): {category} ===")
+
+    # ----------------- Locking (Drive-aware, per-category) -------------------
+    lock_dir = repo_root / "data" / "locks" / "03_user_features"
+    lock_path = lock_dir / f"{category}.lock"
+
+    # Try to hydrate remote lock before checking
+    rel_lock = str(lock_path.relative_to(repo_root))
+    try:
+        ensure_local_path(rel_lock)
+    except Exception:
+        pass
+
+    lock_dir.mkdir(parents=True, exist_ok=True)
+
+    if lock_path.exists():
+        print(
+            f"  [lock] Detected existing lock for {category} at {lock_path}. "
+            "Skipping this category."
         )
-        .reset_index()
-    )
+        return
 
-    # Merge with global top_users_df to include global stats
-    top_users_df_local = top_users_df.copy()
-    if "user_id" not in top_users_df_local.columns:
-        top_users_df_local = top_users_df_local.reset_index()
+    with open(lock_path, "w", encoding="utf-8") as lf:
+        lf.write("locked\n")
+    try:
+        upload_to_drive(lock_path)
+    except Exception as e:
+        print(f"  [lock] WARNING: failed to upload lock to Drive: {e}")
 
-    sel = top_users_df_local.merge(
-        agg,
-        how="right",
-        left_on=top_users_df_local["user_id"].astype(str),
-        right_on=agg["user_id"].astype(str),
-    )
-    # `merge` may produce duplicate columns; keep the `user_id` from agg and drop the synthetic key
-    if "user_id_x" in sel.columns and "user_id_y" in sel.columns:
-        sel = sel.drop(
-            columns=[
-                c for c in sel.columns if c.endswith("_x") or c.endswith("_y")
-            ]
-        )
-    # ensure canonical user_id
-    if "user_id" not in sel.columns and "key_0" in sel.columns:
-        sel = sel.rename(columns={"key_0": "user_id"})
+    try:
+        review_gz = raw_dir / "reviews" / f"{category}.jsonl.gz"
+        meta_gz = raw_dir / "meta" / f"meta_{category}.jsonl.gz"
+        review_url = REVIEW_URL_TEMPLATE.format(category=category)
+        meta_url = META_URL_TEMPLATE.format(category=category)
 
-    # If merge didn't include some columns, fall back to aggregations only
-    if sel.empty:
-        sel = agg
+        cat_proc_dir = processed_dir / category
+        cat_proc_dir.mkdir(parents=True, exist_ok=True)
 
-    sel.to_parquet(out_user_features, index=False)
-    print(f"  [save] per-user features -> {out_user_features}")
+        # Outputs
+        out_reviews_parquet = cat_proc_dir / f"top_user_reviews_{category}.parquet"
+        out_user_features = cat_proc_dir / f"top_user_features_{category}.parquet"
+        out_item_features = cat_proc_dir / f"top_item_features_{category}.parquet"
+        out_stats_json = cat_proc_dir / f"top_user_review_stats_{category}.json"
+        rating_png = cat_proc_dir / f"top_users_rating_hist_{category}.png"
+        helpful_png = cat_proc_dir / f"top_users_helpful_hist_{category}.png"
 
-    # ------------------------------------------------------------------
-    # Per-item aggregated features (from reviews by top users)
-    # ------------------------------------------------------------------
-    # Compute aggregates per product_id (asin)
-    item_agg = (
-        reviews_df.groupby("product_id")
-        .agg(
-            num_topuser_reviews=("user_id", "count"),
-            num_unique_topusers=("user_id", "nunique"),
-            avg_rating_topusers=("rating", "mean"),
-            avg_helpful_votes_topusers=("helpful_votes", "mean"),
-            first_review_time=("unixReviewTime", "min"),
-            last_review_time=("unixReviewTime", "max"),
-        )
-        .reset_index()
-    )
-
-    # Attach meta info where available
-    def _get_meta_avg(asin):
-        return item_meta.get(str(asin), {}).get("item_avg_rating")
-
-    def _get_meta_cats(asin):
-        return item_meta.get(str(asin), {}).get("item_categories")
-
-    item_agg["item_avg_rating_meta"] = item_agg["product_id"].map(
-        _get_meta_avg
-    )
-    item_agg["item_categories_meta"] = item_agg["product_id"].map(
-        _get_meta_cats
-    )
-
-    item_agg.to_parquet(out_item_features, index=False)
-    print(f"  [save] per-item features -> {out_item_features}")
-
-    stats_out = {
-        "category": category,
-        "n_reviews": len(reviews_df),
-        "n_users": len(per_user_counts),
-        "rating_hist": dict(rating_hist),
-        "helpful_hist": dict(helpful_hist),
-    }
-    with open(out_stats_json, "w", encoding="utf-8") as f:
-        json.dump(stats_out, f, indent=2)
-    print(f"  [save] stats -> {out_stats_json}")
-
-    if not rating_png.exists():
-        save_rating_hist_plot(
-            rating_hist,
+        expected_outputs = [
+            out_reviews_parquet,
+            out_user_features,
+            out_item_features,
+            out_stats_json,
             rating_png,
-            title=f"Top users rating distribution ({category})",
-        )
-    if not helpful_png.exists():
-        save_helpful_hist_plot(
-            helpful_hist,
             helpful_png,
-            title=f"Top users helpful votes ({category})",
+        ]
+
+        # Try to pull processed outputs from Drive if they exist there
+        ensure_outputs_from_drive(expected_outputs, repo_root)
+
+        # Category-level skip if EVERYTHING exists
+        if all(p.exists() for p in expected_outputs):
+            print("  [skip] all processed outputs exist for this category")
+            # Optional cleanup of raw gz if requested
+            if cleanup_raw:
+                for p in (review_gz, meta_gz):
+                    if p.exists():
+                        print(f"  [cleanup-raw] removing {p}")
+                        p.unlink()
+            print(f"=== Done category (skipped): {category} ===")
+            return
+
+        # Determine which steps we actually need
+        need_step1 = not (
+            out_reviews_parquet.exists() and out_stats_json.exists()
+        )
+        need_step2 = not out_user_features.exists()
+        need_step3 = not out_item_features.exists()
+        need_step4 = not (rating_png.exists() and helpful_png.exists())
+
+        # We need the review gzip if we are going to re-parse
+        if need_step1:
+            ensure_raw_gzip_or_download(
+                review_gz, review_url, allow_download, repo_root
+            )
+
+        # We need meta if we are going to parse or create item-level aggregates
+        need_meta = need_step1 or need_step3
+        item_meta: Dict[str, Dict] = {}
+
+        if need_meta:
+            ensure_raw_gzip_or_download(
+                meta_gz, meta_url, allow_download, repo_root
+            )
+            if meta_gz.exists():
+                try:
+                    item_meta = load_item_meta(meta_gz, category)
+                except EOFError:
+                    print(
+                        f"  [warn] truncated meta gzip for {category}; "
+                        "re-downloading and retrying..."
+                    )
+                    download_if_needed(meta_url, meta_gz, force=True)
+                    item_meta = load_item_meta(meta_gz, category)
+
+        # Build top_users set
+        top_users_set = set(top_users_df["user_id"].astype(str).tolist())
+        print(
+            f"  [info] top_users provided: {len(top_users_set)} users; filtering reviews..."
         )
 
+        # ------------------------------------------------------------------
+        # Step 1: filtered reviews + stats
+        # ------------------------------------------------------------------
+        if not need_step1:
+            print("  [skip] filtered reviews + stats already exist; loading from disk.")
+            reviews_df = pd.read_parquet(out_reviews_parquet)
+            with open(out_stats_json, "r", encoding="utf-8") as f:
+                stats = json.load(f)
+            rating_hist = Counter(
+                {float(k): v for k, v in stats.get("rating_hist", {}).items()}
+            )
+            helpful_hist = Counter(
+                {int(k): v for k, v in stats.get("helpful_hist", {}).items()}
+            )
+        else:
+            print("  [run] parsing review gz for top users...")
+            try:
+                reviews_df, rating_hist, helpful_hist, n_users = (
+                    parse_reviews_for_top_users(
+                        review_gz, top_users_set, item_meta, category
+                    )
+                )
+            except EOFError:
+                print(
+                    f"  [warn] truncated review gzip for {category}; "
+                    "re-downloading and retrying..."
+                )
+                download_if_needed(review_url, review_gz, force=True)
+                reviews_df, rating_hist, helpful_hist, n_users = (
+                    parse_reviews_for_top_users(
+                        review_gz, top_users_set, item_meta, category
+                    )
+                )
 
+            # Save even if empty to signal that this category is processed
+            reviews_df.to_parquet(out_reviews_parquet, index=False)
+            print(f"  [save] top-user reviews -> {out_reviews_parquet}")
+
+            stats_out = {
+                "category": category,
+                "n_reviews": int(len(reviews_df)),
+                "n_users": int(n_users),
+                "rating_hist": dict(rating_hist),
+                "helpful_hist": dict(helpful_hist),
+            }
+            with open(out_stats_json, "w", encoding="utf-8") as f:
+                json.dump(stats_out, f, indent=2)
+            print(f"  [save] stats -> {out_stats_json}")
+
+        # If there are zero reviews, short-circuit steps 2–4
+        if reviews_df.empty:
+            print("  [warn] No reviews for top users in this category.")
+            if not out_user_features.exists():
+                pd.DataFrame(columns=["user_id"]).to_parquet(
+                    out_user_features, index=False
+                )
+                print(
+                    f"  [save] empty per-user features -> {out_user_features}"
+                )
+            if not out_item_features.exists():
+                pd.DataFrame(columns=["product_id"]).to_parquet(
+                    out_item_features, index=False
+                )
+                print(
+                    f"  [save] empty per-item features -> {out_item_features}"
+                )
+            if need_step4:
+                save_rating_hist_plot(
+                    rating_hist,
+                    rating_png,
+                    title=f"Top users rating distribution ({category})",
+                )
+                save_helpful_hist_plot(
+                    helpful_hist,
+                    helpful_png,
+                    title=f"Top users helpful votes ({category})",
+                )
+            # Cleanup raw gz if requested
+            if cleanup_raw:
+                for p in (review_gz, meta_gz):
+                    if p.exists():
+                        print(f"  [cleanup-raw] removing {p}")
+                        p.unlink()
+            print(f"=== Done category (no top-user reviews): {category} ===")
+            return
+
+        # ------------------------------------------------------------------
+        # Step 2: per-user aggregated features
+        # ------------------------------------------------------------------
+        if not need_step2:
+            print(
+                f"  [skip] per-user features already exist: {out_user_features}"
+            )
+        else:
+            print("  [run] computing per-user aggregated features...")
+            agg = (
+                reviews_df.groupby("user_id")
+                .agg(
+                    num_purchases_in_category=("product_id", "count"),
+                    avg_rating_in_category=("rating", "mean"),
+                    avg_helpful_vote_in_category=("helpful_votes", "mean"),
+                    avg_item_avg_rating=("item_avg_rating", "mean"),
+                    first_review_time=("unixReviewTime", "min"),
+                    last_review_time=("unixReviewTime", "max"),
+                )
+                .reset_index()
+            )
+
+            top_users_df_local = top_users_df.copy()
+            if "user_id" not in top_users_df_local.columns:
+                top_users_df_local = top_users_df_local.reset_index()
+
+            top_users_df_local["user_id"] = top_users_df_local[
+                "user_id"
+            ].astype(str)
+            agg["user_id"] = agg["user_id"].astype(str)
+
+            sel = agg.merge(top_users_df_local, on="user_id", how="left")
+
+            sel.to_parquet(out_user_features, index=False)
+            print(f"  [save] per-user features -> {out_user_features}")
+
+        # ------------------------------------------------------------------
+        # Step 3: per-item aggregated features
+        # ------------------------------------------------------------------
+        if not need_step3:
+            print(
+                f"  [skip] per-item features already exist: {out_item_features}"
+            )
+        else:
+            print("  [run] computing per-item aggregated features...")
+            item_agg = (
+                reviews_df.groupby("product_id")
+                .agg(
+                    num_topuser_reviews=("user_id", "count"),
+                    num_unique_topusers=("user_id", "nunique"),
+                    avg_rating_topusers=("rating", "mean"),
+                    avg_helpful_votes_topusers=("helpful_votes", "mean"),
+                    first_review_time=("unixReviewTime", "min"),
+                    last_review_time=("unixReviewTime", "max"),
+                )
+                .reset_index()
+            )
+
+            def _get_meta_avg(asin):
+                return item_meta.get(str(asin), {}).get("item_avg_rating")
+
+            def _get_meta_cats(asin):
+                return item_meta.get(str(asin), {}).get("item_categories")
+
+            item_agg["item_avg_rating_meta"] = item_agg["product_id"].map(
+                _get_meta_avg
+            )
+            item_agg["item_categories_meta"] = item_agg["product_id"].map(
+                _get_meta_cats
+            )
+
+            item_agg.to_parquet(out_item_features, index=False)
+            print(f"  [save] per-item features -> {out_item_features}")
+
+        # ------------------------------------------------------------------
+        # Step 4: EDA plots from rating/helpful hist
+        # ------------------------------------------------------------------
+        if not rating_png.exists() or not helpful_png.exists():
+            print("  [run] creating EDA plots for top-user reviews...")
+        if not rating_png.exists():
+            save_rating_hist_plot(
+                rating_hist,
+                rating_png,
+                title=f"Top users rating distribution ({category})",
+            )
+        else:
+            print(f"  [skip] rating hist plot already exists: {rating_png}")
+
+        if not helpful_png.exists():
+            save_helpful_hist_plot(
+                helpful_hist,
+                helpful_png,
+                title=f"Top users helpful votes ({category})",
+            )
+        else:
+            print(f"  [skip] helpful votes plot already exists: {helpful_png}")
+
+        # ------------------------------------------------------------------
+        # Upload processed artifacts to Drive
+        # ------------------------------------------------------------------
+        upload_targets = [
+            out_reviews_parquet,
+            out_user_features,
+            out_item_features,
+            out_stats_json,
+            rating_png,
+            helpful_png,
+        ]
+        print("  [drive] uploading processed outputs to Drive...")
+        for p in upload_targets:
+            try:
+                upload_to_drive(p)
+            except Exception as e:
+                print(f"  [drive] WARNING: failed to upload {p}: {e}")
+
+        # ------------------------------------------------------------------
+        # Cleanup processed outputs (optional)
+        # ------------------------------------------------------------------
+        if cleanup_processed != "none":
+            for p in upload_targets:
+                if cleanup_processed == "parquet" and p.suffix != ".parquet":
+                    continue
+                try:
+                    if p.exists():
+                        print(f"  [cleanup-processed] removing {p}")
+                        p.unlink()
+                except OSError as e:
+                    print(f"  [cleanup-processed] WARNING: failed to remove {p}: {e}")
+
+        # Cleanup raw gz if requested
+        if cleanup_raw:
+            for p in (review_gz, meta_gz):
+                if p.exists():
+                    print(f"  [cleanup-raw] removing {p}")
+                    p.unlink()
+
+        print(f"=== Done category: {category} ===")
+
+    finally:
+        # Always try to release lock
+        if lock_path.exists():
+            try:
+                lock_path.unlink()
+            except OSError:
+                pass
+
+
+# --------------------------------------------------------------------
+# Main
+# --------------------------------------------------------------------
 def main() -> None:
     args = parse_args()
     repo_root = get_repo_root()
     raw_dir = repo_root / "data" / "raw"
     processed_dir = repo_root / "data" / "processed"
+    cleanup_raw = not (args.no_cleanup_raw or args.no_cleanup)
+    cleanup_processed = args.cleanup_processed
+    allow_download = not args.no_download
 
-    top_users_path = (
-        Path(args.top_users)
-        if args.top_users
-        else (repo_root / "data" / "global" / "top_users.parquet")
-    )
-    if not top_users_path.exists():
-        raise FileNotFoundError(f"Top users file not found: {top_users_path}")
+    # Always resync registry at the start so Drive state is fresh
+    resync_registry()
+
+    # Resolve top_users path
+    if args.top_users:
+        top_users_path = Path(args.top_users)
+        if not top_users_path.is_absolute():
+            top_users_path = repo_root / top_users_path
+        if not top_users_path.exists():
+            raise FileNotFoundError(
+                f"Top users file not found: {top_users_path}"
+            )
+    else:
+        # Use data registry (processed.top_users) and Google Drive if needed
+        top_users_path = ensure_local("processed", "top_users")
 
     top_users_df = load_top_users(top_users_path)
 
@@ -501,11 +821,21 @@ def main() -> None:
         categories = args.categories
         print(f"Using categories from CLI: {categories}")
     else:
-        cat_file = (
-            Path(args.categories_file)
-            if args.categories_file
-            else (raw_dir / "all_categories.txt")
-        )
+        if args.categories_file:
+            cat_file = Path(args.categories_file)
+            if not cat_file.is_absolute():
+                cat_file = repo_root / cat_file
+            if not cat_file.exists():
+                # Try drive registry lookup by relative path
+                rel = str(cat_file.relative_to(repo_root))
+                print(
+                    f"[info] categories file not local; trying Drive for {rel}"
+                )
+                cat_file = ensure_local_path(rel)
+        else:
+            # Default: use registry entry raw.all_categories.txt
+            cat_file = ensure_local("raw", "all_categories.txt")
+
         categories = read_all_categories_from_file(cat_file)
         print(f"No categories specified; using all from {cat_file}")
         print(f"{len(categories)} categories: {categories}")
@@ -517,7 +847,10 @@ def main() -> None:
                 raw_dir=raw_dir,
                 processed_dir=processed_dir,
                 top_users_df=top_users_df,
-                allow_download=not args.no_download,
+                allow_download=allow_download,
+                cleanup_raw=cleanup_raw,
+                cleanup_processed=cleanup_processed,
+                repo_root=repo_root,
             )
         except Exception as e:
             print(f"  [error] processing {cat}: {e}")
@@ -526,6 +859,9 @@ def main() -> None:
 if __name__ == "__main__":
     main()
 
-# usage
+# usage examples:
 # python common_scripts/03_user_features.py
 # python common_scripts/03_user_features.py --categories Movies_and_TV Books
+# python common_scripts/03_user_features.py --no-cleanup-raw
+# python common_scripts/03_user_features.py --cleanup-processed none
+# python common_scripts/03_user_features.py --cleanup-processed all
