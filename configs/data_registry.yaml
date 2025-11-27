@@ -1,0 +1,536 @@
+drive_root_folder_id: 1VlvbLS_p-tGwqFVufh8jd6zLPz_pxnu-
+locks:
+  All_Beauty:
+    drive_file_id: 1k_eK78W3KkpHH_RbiyKsRJeyYdBkRe73
+    local_path: data\locks\03_user_features\All_Beauty.lock
+  Toys_and_Games:
+    local_path: data\locks\03_user_features\Toys_and_Games.lock
+processed:
+  .DS_Store:
+    drive_file_id: 1mKbQfJU236L2i7hrkB-gtzh5JwzV2nWs
+    local_path: data\processed\Unknown\.DS_Store
+  helpful_votes_hist_All_Beauty:
+    drive_file_id: 1sK83-SDtScePkr7GZfzxBr5ZRf5gYtLv
+    local_path: data\processed\All_Beauty\helpful_votes_hist_All_Beauty.png
+  helpful_votes_hist_Amazon_Fashion:
+    drive_file_id: 1BJz_sLP89icOaWpJIzy3LgiGLM1Gxqjq
+    local_path: data\processed\Amazon_Fashion\helpful_votes_hist_Amazon_Fashion.png
+  helpful_votes_hist_Appliances:
+    drive_file_id: 1cc6WqyNfaTW2E2ApTUUdztqe0OoR4YRU
+    local_path: data\processed\Appliances\helpful_votes_hist_Appliances.png
+  helpful_votes_hist_Arts_Crafts_and_Sewing:
+    drive_file_id: 1q5aDFJGBx04oCjVcc8Ii4W3sizKnN63j
+    local_path: data\processed\Arts_Crafts_and_Sewing\helpful_votes_hist_Arts_Crafts_and_Sewing.png
+  helpful_votes_hist_Automotive:
+    drive_file_id: 1u3j5-ZSmh0C8alkUqrvI21GiRIU9sf55
+    local_path: data\processed\Automotive\helpful_votes_hist_Automotive.png
+  helpful_votes_hist_Baby_Products:
+    drive_file_id: 1QYJBpasOnnbBkCIRLl9b9OtmQYOBr04L
+    local_path: data\processed\Baby_Products\helpful_votes_hist_Baby_Products.png
+  helpful_votes_hist_Beauty_and_Personal_Care:
+    drive_file_id: 1PdfBOGGALInQRT0OdTjeFufsdNbe6OPs
+    local_path: data\processed\Beauty_and_Personal_Care\helpful_votes_hist_Beauty_and_Personal_Care.png
+  helpful_votes_hist_Books:
+    drive_file_id: 1tBjdlu6lXtel9uI4VWb1rzYkun4j9KF0
+    local_path: data\processed\Books\helpful_votes_hist_Books.png
+  helpful_votes_hist_CDs_and_Vinyl:
+    drive_file_id: 1HaKY4jbQQYPcIve7y6Qkc9eOI2MzrAQi
+    local_path: data\processed\CDs_and_Vinyl\helpful_votes_hist_CDs_and_Vinyl.png
+  helpful_votes_hist_Cell_Phones_and_Accessories:
+    drive_file_id: 1UdACGYnhOlD1Omo5Uo7Fj0-yd_1lqAxP
+    local_path: data\processed\Cell_Phones_and_Accessories\helpful_votes_hist_Cell_Phones_and_Accessories.png
+  helpful_votes_hist_Clothing_Shoes_and_Jewelry:
+    drive_file_id: 1rQ09keJspbXaLNaxcXIIa5UPKBKYB6VJ
+    local_path: data\processed\Clothing_Shoes_and_Jewelry\helpful_votes_hist_Clothing_Shoes_and_Jewelry.png
+  helpful_votes_hist_Digital_Music:
+    drive_file_id: 1M_uxiZ5ewLJ9Ky4BL7gcEJPoa-6B6ouY
+    local_path: data\processed\Digital_Music\helpful_votes_hist_Digital_Music.png
+  helpful_votes_hist_Electronics:
+    drive_file_id: 1YwgQW1jUSUJ4219xpqdpZNjU2iv3qV-l
+    local_path: data\processed\Electronics\helpful_votes_hist_Electronics.png
+  helpful_votes_hist_Gift_Cards:
+    drive_file_id: 1aA-R8o3WJPnQa6K03ZqW5ljU8RqBq5Yr
+    local_path: data\processed\Gift_Cards\helpful_votes_hist_Gift_Cards.png
+  helpful_votes_hist_Grocery_and_Gourmet_Food:
+    drive_file_id: 1-k26JKNuBLQ0kFiDI_iA21egpH9jdjQZ
+    local_path: data\processed\Grocery_and_Gourmet_Food\helpful_votes_hist_Grocery_and_Gourmet_Food.png
+  helpful_votes_hist_Handmade_Products:
+    drive_file_id: 1Jsc2ih8DKh40dwpSEm-BFrnh2MhM3Y1K
+    local_path: data\processed\Handmade_Products\helpful_votes_hist_Handmade_Products.png
+  helpful_votes_hist_Health_and_Household:
+    drive_file_id: 1zwviiQySg3DW-ENkIunS9FyeLkIISbLs
+    local_path: data\processed\Health_and_Household\helpful_votes_hist_Health_and_Household.png
+  helpful_votes_hist_Health_and_Personal_Care:
+    drive_file_id: 1XZjZJEn2wUVCfJ7YHDHr5t7qMe7B0bAE
+    local_path: data\processed\Health_and_Personal_Care\helpful_votes_hist_Health_and_Personal_Care.png
+  helpful_votes_hist_Home_and_Kitchen:
+    drive_file_id: 1TSiSvNVsyM7zKPsnCz-JrZuqSgG8xz5E
+    local_path: data\processed\Home_and_Kitchen\helpful_votes_hist_Home_and_Kitchen.png
+  helpful_votes_hist_Industrial_and_Scientific:
+    drive_file_id: 1tZZI8lXrtAl9edspayZ_5_99nlkKK7gy
+    local_path: data\processed\Industrial_and_Scientific\helpful_votes_hist_Industrial_and_Scientific.png
+  helpful_votes_hist_Kindle_Store:
+    drive_file_id: 1VwJmAEK1BfG5WWtFrtV_dStj6Ywgqw0E
+    local_path: data\processed\Kindle_Store\helpful_votes_hist_Kindle_Store.png
+  helpful_votes_hist_Magazine_Subscriptions:
+    drive_file_id: 1z9EnS6PqTHb-bPs1_9KybUXcOBoh1jt7
+    local_path: data\processed\Magazine_Subscriptions\helpful_votes_hist_Magazine_Subscriptions.png
+  helpful_votes_hist_Movies_and_TV:
+    drive_file_id: 1XV3P9S803S1ukPmKEjxoRspK_uLv8tIg
+    local_path: data\processed\Movies_and_TV\helpful_votes_hist_Movies_and_TV.png
+  helpful_votes_hist_Musical_Instruments:
+    drive_file_id: 1vrloAjXlAtu5_RPHVDOVAfQ4YSF1SSNu
+    local_path: data\processed\Musical_Instruments\helpful_votes_hist_Musical_Instruments.png
+  helpful_votes_hist_Office_Products:
+    drive_file_id: 1gdgyXeSLXXN0TlVBcU7LbjRWWMtD8nTJ
+    local_path: data\processed\Office_Products\helpful_votes_hist_Office_Products.png
+  helpful_votes_hist_Patio_Lawn_and_Garden:
+    drive_file_id: 1p1ySdYrNUcdPrzlvhMTQKxqFckONFpvV
+    local_path: data\processed\Patio_Lawn_and_Garden\helpful_votes_hist_Patio_Lawn_and_Garden.png
+  helpful_votes_hist_Pet_Supplies:
+    drive_file_id: 1-CMHefYlr4T3isJiNSXMMDkDVFqRxsrJ
+    local_path: data\processed\Pet_Supplies\helpful_votes_hist_Pet_Supplies.png
+  helpful_votes_hist_Software:
+    drive_file_id: 17LvrHoUgb7-f7PjtqKOQnFHPi21B9FvB
+    local_path: data\processed\Software\helpful_votes_hist_Software.png
+  helpful_votes_hist_Sports_and_Outdoors:
+    drive_file_id: 1fcEYtGEIN7wXYJmMnnrshLIyR0G4W6mJ
+    local_path: data\processed\Sports_and_Outdoors\helpful_votes_hist_Sports_and_Outdoors.png
+  helpful_votes_hist_Subscription_Boxes:
+    drive_file_id: 1TUdgr1BgB34Hdph7w1wp2L297MPDdYL3
+    local_path: data\processed\Subscription_Boxes\helpful_votes_hist_Subscription_Boxes.png
+  helpful_votes_hist_Tools_and_Home_Improvement:
+    drive_file_id: 1kbM7nwlkq-lW0rnbSiOwYABG8xQinbmX
+    local_path: data\processed\Tools_and_Home_Improvement\helpful_votes_hist_Tools_and_Home_Improvement.png
+  helpful_votes_hist_Toys_and_Games:
+    drive_file_id: 1B9yuwi_k4zm591OG0ad8rdNIRcFo5Xde
+    local_path: data\processed\Toys_and_Games\helpful_votes_hist_Toys_and_Games.png
+  helpful_votes_hist_Unknown:
+    drive_file_id: 1r3PNhLrc5mRSk2mhYJYJxXiDsO9FrtEO
+    local_path: data\processed\Unknown\helpful_votes_hist_Unknown.png
+  meta_stats_All_Beauty:
+    drive_file_id: 1GQG90z7Pi_Bcb4NUDnLCWRYUxY5LHCx5
+    local_path: data\processed\All_Beauty\meta_stats_All_Beauty.json
+  meta_stats_Amazon_Fashion:
+    drive_file_id: 1lc2GVYwZ6jduvr3OivNY-pl7H871Rkpg
+    local_path: data\processed\Amazon_Fashion\meta_stats_Amazon_Fashion.json
+  meta_stats_Appliances:
+    drive_file_id: 1ZYgQQb9unG87GSRXKIiKUtejZ7OnsxNJ
+    local_path: data\processed\Appliances\meta_stats_Appliances.json
+  meta_stats_Arts_Crafts_and_Sewing:
+    drive_file_id: 1ATd9FacMLk80nvBt3fAYvPtuulXCfsjc
+    local_path: data\processed\Arts_Crafts_and_Sewing\meta_stats_Arts_Crafts_and_Sewing.json
+  meta_stats_Automotive:
+    drive_file_id: 1wusSzzhXGycAMzAl26y_mub2T_osUB1t
+    local_path: data\processed\Automotive\meta_stats_Automotive.json
+  meta_stats_Baby_Products:
+    drive_file_id: 1KOrr1EbEwfK6vzy_RjXhntAyKjvYnapc
+    local_path: data\processed\Baby_Products\meta_stats_Baby_Products.json
+  meta_stats_Beauty_and_Personal_Care:
+    drive_file_id: 1kvbtWnO2T6m4-6AxsMYRD9tUcd1PAwAG
+    local_path: data\processed\Beauty_and_Personal_Care\meta_stats_Beauty_and_Personal_Care.json
+  meta_stats_Books:
+    drive_file_id: 1gCq4G4gR6CkVNDp9zVNNq71ybpc7-eYu
+    local_path: data\processed\Books\meta_stats_Books.json
+  meta_stats_CDs_and_Vinyl:
+    drive_file_id: 1ofZwKpM6sUnRDve6XnVleZDhSwzSW3GF
+    local_path: data\processed\CDs_and_Vinyl\meta_stats_CDs_and_Vinyl.json
+  meta_stats_Cell_Phones_and_Accessories:
+    drive_file_id: 1BeqRVa-0LsmO84XPY8A5KCohBhyM5WEf
+    local_path: data\processed\Cell_Phones_and_Accessories\meta_stats_Cell_Phones_and_Accessories.json
+  meta_stats_Clothing_Shoes_and_Jewelry:
+    drive_file_id: 19ZVpBqApEMYktnSmadHOvl6RSbDM0YzA
+    local_path: data\processed\Clothing_Shoes_and_Jewelry\meta_stats_Clothing_Shoes_and_Jewelry.json
+  meta_stats_Digital_Music:
+    drive_file_id: 11QdeHpN2FOZ_2PbnCkrypjkAKj21IpF4
+    local_path: data\processed\Digital_Music\meta_stats_Digital_Music.json
+  meta_stats_Electronics:
+    drive_file_id: 1zQfYHV1bXAfgoca34U6PYcOkqaHcYBD5
+    local_path: data\processed\Electronics\meta_stats_Electronics.json
+  meta_stats_Gift_Cards:
+    drive_file_id: 1n_jvQf_WeNrgQ86XbaHJu3RX9fu-Dz9T
+    local_path: data\processed\Gift_Cards\meta_stats_Gift_Cards.json
+  meta_stats_Grocery_and_Gourmet_Food:
+    drive_file_id: 15YEZenPXdUzWX2iSZPYuVi54uZORtYwj
+    local_path: data\processed\Grocery_and_Gourmet_Food\meta_stats_Grocery_and_Gourmet_Food.json
+  meta_stats_Handmade_Products:
+    drive_file_id: 1wbrnfzj_Z3Amu2wQA1cPw5LdEZSZTxPJ
+    local_path: data\processed\Handmade_Products\meta_stats_Handmade_Products.json
+  meta_stats_Health_and_Household:
+    drive_file_id: 15B9Ox8rh26AkNhByG8z0ryl71ghkHeFl
+    local_path: data\processed\Health_and_Household\meta_stats_Health_and_Household.json
+  meta_stats_Health_and_Personal_Care:
+    drive_file_id: 1sUecRnNA3HLwGuIqNcLf7MsOcIxQU-Ce
+    local_path: data\processed\Health_and_Personal_Care\meta_stats_Health_and_Personal_Care.json
+  meta_stats_Home_and_Kitchen:
+    drive_file_id: 17YO9mp6ywd5GyyKeoaocr3-m6JcOMSfQ
+    local_path: data\processed\Home_and_Kitchen\meta_stats_Home_and_Kitchen.json
+  meta_stats_Industrial_and_Scientific:
+    drive_file_id: 1ZeD03srbHVB3m3S_2RqMMnbZSmT1zDNl
+    local_path: data\processed\Industrial_and_Scientific\meta_stats_Industrial_and_Scientific.json
+  meta_stats_Kindle_Store:
+    drive_file_id: 1AcS4lOMHayaGmag6AQzY-r7vTq3KP6FR
+    local_path: data\processed\Kindle_Store\meta_stats_Kindle_Store.json
+  meta_stats_Magazine_Subscriptions:
+    drive_file_id: 10kPITvd4StUH1l8X6PXS5BbiNe57GexQ
+    local_path: data\processed\Magazine_Subscriptions\meta_stats_Magazine_Subscriptions.json
+  meta_stats_Movies_and_TV:
+    drive_file_id: 1z7xi818sjc8Zph0P4pc49abmUauQEkHw
+    local_path: data\processed\Movies_and_TV\meta_stats_Movies_and_TV.json
+  meta_stats_Musical_Instruments:
+    drive_file_id: 1QiCw_Dq5fkErX3xVDN_WlL2Y8zCwymGI
+    local_path: data\processed\Musical_Instruments\meta_stats_Musical_Instruments.json
+  meta_stats_Office_Products:
+    drive_file_id: 1lF8bLzrpw3quXhdTVHqme8x-YhsB9x2i
+    local_path: data\processed\Office_Products\meta_stats_Office_Products.json
+  meta_stats_Patio_Lawn_and_Garden:
+    drive_file_id: 1svqRG5C2XSDvtn929ztjZTBMO_fPMeLC
+    local_path: data\processed\Patio_Lawn_and_Garden\meta_stats_Patio_Lawn_and_Garden.json
+  meta_stats_Pet_Supplies:
+    drive_file_id: 1JJmz_eI0OGiXzGGxyiyeDnlfHWAaWNTa
+    local_path: data\processed\Pet_Supplies\meta_stats_Pet_Supplies.json
+  meta_stats_Software:
+    drive_file_id: 1lzYHa4MhZO3OuGbIerN_EXYzUqlJbNfp
+    local_path: data\processed\Software\meta_stats_Software.json
+  meta_stats_Sports_and_Outdoors:
+    drive_file_id: 1f59GY67J_KGi3ObOEa4_1FzCS7utWdbs
+    local_path: data\processed\Sports_and_Outdoors\meta_stats_Sports_and_Outdoors.json
+  meta_stats_Subscription_Boxes:
+    drive_file_id: 1XNg-D5FzmRGlZFyr-3ukJ18ffElUHm5_
+    local_path: data\processed\Subscription_Boxes\meta_stats_Subscription_Boxes.json
+  meta_stats_Tools_and_Home_Improvement:
+    drive_file_id: 1pDX6-H6ep1rnbC9Y6goe6NvNcRZHqz7O
+    local_path: data\processed\Tools_and_Home_Improvement\meta_stats_Tools_and_Home_Improvement.json
+  meta_stats_Toys_and_Games:
+    drive_file_id: 1Cb_s4WfqRmwshDZTNr7j0JCXZHFMbFhl
+    local_path: data\processed\Toys_and_Games\meta_stats_Toys_and_Games.json
+  meta_stats_Unknown:
+    drive_file_id: 19W1e46YnUSCk3b3ZyBL1eyDdCiQRo7x3
+    local_path: data\processed\Unknown\meta_stats_Unknown.json
+  rating_hist_All_Beauty:
+    drive_file_id: 1R1avGbLxGBf_keI2aTVWubFp9dku7n1r
+    local_path: data\processed\All_Beauty\rating_hist_All_Beauty.png
+  rating_hist_Amazon_Fashion:
+    drive_file_id: 1RPJcLMgvoMPPs6B-30kmbazypqjyxgt7
+    local_path: data\processed\Amazon_Fashion\rating_hist_Amazon_Fashion.png
+  rating_hist_Appliances:
+    drive_file_id: 1-A0YpQb_q3G3oSLYdM0ODjcy65fsbQO_
+    local_path: data\processed\Appliances\rating_hist_Appliances.png
+  rating_hist_Arts_Crafts_and_Sewing:
+    drive_file_id: 1MTXUjILrFs6tezCXTaiLZL_Uk4dKxO_i
+    local_path: data\processed\Arts_Crafts_and_Sewing\rating_hist_Arts_Crafts_and_Sewing.png
+  rating_hist_Automotive:
+    drive_file_id: 1KW9KcgQ7GMMh5LDEx1Zb_cmm1vnXMctB
+    local_path: data\processed\Automotive\rating_hist_Automotive.png
+  rating_hist_Baby_Products:
+    drive_file_id: 16pMXqmKOH3xOtqkt7YXJhxVfA7FIxfgZ
+    local_path: data\processed\Baby_Products\rating_hist_Baby_Products.png
+  rating_hist_Beauty_and_Personal_Care:
+    drive_file_id: 1IQBMR18qtNjLJNmoxedaTA62aQWISePS
+    local_path: data\processed\Beauty_and_Personal_Care\rating_hist_Beauty_and_Personal_Care.png
+  rating_hist_Books:
+    drive_file_id: 1-AIqh0d92Uv3BnRQmLmzToYZIMaBmQBc
+    local_path: data\processed\Books\rating_hist_Books.png
+  rating_hist_CDs_and_Vinyl:
+    drive_file_id: 1-6VAFNDLfhvqt1NdAEa1SUIORIM53Ovb
+    local_path: data\processed\CDs_and_Vinyl\rating_hist_CDs_and_Vinyl.png
+  rating_hist_Cell_Phones_and_Accessories:
+    drive_file_id: 17eoSHF8Mlly3YNVIGwbGQ4PA8ZY7Er99
+    local_path: data\processed\Cell_Phones_and_Accessories\rating_hist_Cell_Phones_and_Accessories.png
+  rating_hist_Clothing_Shoes_and_Jewelry:
+    drive_file_id: 1lgzXKFbqjBYG3sdNWkEx7jhoNYjqjHPW
+    local_path: data\processed\Clothing_Shoes_and_Jewelry\rating_hist_Clothing_Shoes_and_Jewelry.png
+  rating_hist_Digital_Music:
+    drive_file_id: 118JJz4TK5q3hmgWsmUFF_FpPTFz7NMN-
+    local_path: data\processed\Digital_Music\rating_hist_Digital_Music.png
+  rating_hist_Electronics:
+    drive_file_id: 1svbIpQ2zPCMqlB3U_D3IXmoe5sT-IHYs
+    local_path: data\processed\Electronics\rating_hist_Electronics.png
+  rating_hist_Gift_Cards:
+    drive_file_id: 1z3mTt7RzJBsBIS81kQpbAU1qOKZHyG_3
+    local_path: data\processed\Gift_Cards\rating_hist_Gift_Cards.png
+  rating_hist_Grocery_and_Gourmet_Food:
+    drive_file_id: 1m3Y_X8e4DiZvHaQSxB2c-8YZcJlAMzyP
+    local_path: data\processed\Grocery_and_Gourmet_Food\rating_hist_Grocery_and_Gourmet_Food.png
+  rating_hist_Handmade_Products:
+    drive_file_id: 14auRuNU2KRz6e54wFnGaa9yuyubLpJqK
+    local_path: data\processed\Handmade_Products\rating_hist_Handmade_Products.png
+  rating_hist_Health_and_Household:
+    drive_file_id: 1YGd7bSDeIpOG3x82ybbvdYZEwVlkXQ4Q
+    local_path: data\processed\Health_and_Household\rating_hist_Health_and_Household.png
+  rating_hist_Health_and_Personal_Care:
+    drive_file_id: 18OGlQa8JgSv0weE6quVMJ0d5uUw4gbqC
+    local_path: data\processed\Health_and_Personal_Care\rating_hist_Health_and_Personal_Care.png
+  rating_hist_Home_and_Kitchen:
+    drive_file_id: 1AA1Utx8wBpyNuUnoF_EnkYBMfQSpr48M
+    local_path: data\processed\Home_and_Kitchen\rating_hist_Home_and_Kitchen.png
+  rating_hist_Industrial_and_Scientific:
+    drive_file_id: 1MmaElACiMwmXNSlq2UgkJuM_0lojQsOy
+    local_path: data\processed\Industrial_and_Scientific\rating_hist_Industrial_and_Scientific.png
+  rating_hist_Kindle_Store:
+    drive_file_id: 1UzLdsxRkmGVH6GsVSFBSsdGG_B750JBo
+    local_path: data\processed\Kindle_Store\rating_hist_Kindle_Store.png
+  rating_hist_Magazine_Subscriptions:
+    drive_file_id: 1VpTulTXnweb_QIR-BE06HxlQ1pX8QYM_
+    local_path: data\processed\Magazine_Subscriptions\rating_hist_Magazine_Subscriptions.png
+  rating_hist_Movies_and_TV:
+    drive_file_id: 1tML4KyakpLo9MxwF3fsBV4yMwabPUfJr
+    local_path: data\processed\Movies_and_TV\rating_hist_Movies_and_TV.png
+  rating_hist_Musical_Instruments:
+    drive_file_id: 1Jv1dF_CbRN440Q5kI16tO-Enei5wrDdU
+    local_path: data\processed\Musical_Instruments\rating_hist_Musical_Instruments.png
+  rating_hist_Office_Products:
+    drive_file_id: 1IJnv8D7zZOG0bjzaNxU9s6TizzZVLzKE
+    local_path: data\processed\Office_Products\rating_hist_Office_Products.png
+  rating_hist_Patio_Lawn_and_Garden:
+    drive_file_id: 1Rmg2k7GjKxojpTdkAILFX52w3sQBh--C
+    local_path: data\processed\Patio_Lawn_and_Garden\rating_hist_Patio_Lawn_and_Garden.png
+  rating_hist_Pet_Supplies:
+    drive_file_id: 1SRhFMQy6wfZmRl0NDGj12jK1ZnC5E57T
+    local_path: data\processed\Pet_Supplies\rating_hist_Pet_Supplies.png
+  rating_hist_Software:
+    drive_file_id: 1XgTc-DX-IyE9btN9BSU8FvJrrAYVqTWG
+    local_path: data\processed\Software\rating_hist_Software.png
+  rating_hist_Sports_and_Outdoors:
+    drive_file_id: 16kneZNOazg0rHab7iIzMFCWTvRhIbEj1
+    local_path: data\processed\Sports_and_Outdoors\rating_hist_Sports_and_Outdoors.png
+  rating_hist_Subscription_Boxes:
+    drive_file_id: 17UJsb0ys4Rcyy2iHT87qvLY1PhElpoLo
+    local_path: data\processed\Subscription_Boxes\rating_hist_Subscription_Boxes.png
+  rating_hist_Tools_and_Home_Improvement:
+    drive_file_id: 1el7Xc4NygJdlUyShKb1zlkungSDTPnXZ
+    local_path: data\processed\Tools_and_Home_Improvement\rating_hist_Tools_and_Home_Improvement.png
+  rating_hist_Toys_and_Games:
+    drive_file_id: 1rUQk21mGyq8eIZLG8WLtUu7zdgIHNczd
+    local_path: data\processed\Toys_and_Games\rating_hist_Toys_and_Games.png
+  rating_hist_Unknown:
+    drive_file_id: 1xcba1s_WATvVxCyLkIPUolmGFm40OUvF
+    local_path: data\processed\Unknown\rating_hist_Unknown.png
+  review_stats_All_Beauty:
+    drive_file_id: 1bEoYzwoYW5rNkrMyVytsTRvKpo8d0Bec
+    local_path: data\processed\All_Beauty\review_stats_All_Beauty.json
+  review_stats_Amazon_Fashion:
+    drive_file_id: 1ET6OMhPeX5ggauSXrQTLODfwC7YH4ajJ
+    local_path: data\processed\Amazon_Fashion\review_stats_Amazon_Fashion.json
+  review_stats_Appliances:
+    drive_file_id: 1shoDIQOV_PuPnfIYbv1ajzfmynBhfe0M
+    local_path: data\processed\Appliances\review_stats_Appliances.json
+  review_stats_Arts_Crafts_and_Sewing:
+    drive_file_id: 1FpQ2eKY1PfLS6geDsP6QLQqcthu9icyO
+    local_path: data\processed\Arts_Crafts_and_Sewing\review_stats_Arts_Crafts_and_Sewing.json
+  review_stats_Automotive:
+    drive_file_id: 1V6NH2tVHO6wshK1NjC3DTfBeFVStMoaK
+    local_path: data\processed\Automotive\review_stats_Automotive.json
+  review_stats_Baby_Products:
+    drive_file_id: 1F1wtE4jgv6JrfZXcImWR0BkhUhgDDrFF
+    local_path: data\processed\Baby_Products\review_stats_Baby_Products.json
+  review_stats_Beauty_and_Personal_Care:
+    drive_file_id: 1IYfWQAbEXtf45o8XE1xTlUCCjYlBeFxG
+    local_path: data\processed\Beauty_and_Personal_Care\review_stats_Beauty_and_Personal_Care.json
+  review_stats_Books:
+    drive_file_id: 1JWfRBr2V_doKXTFx9HJGsB03rKJb3v-7
+    local_path: data\processed\Books\review_stats_Books.json
+  review_stats_CDs_and_Vinyl:
+    drive_file_id: 1B0ZpphlNOmLES-_-vRWvARpIfvuI7jFh
+    local_path: data\processed\CDs_and_Vinyl\review_stats_CDs_and_Vinyl.json
+  review_stats_Cell_Phones_and_Accessories:
+    drive_file_id: 1mSNXGxkycAZV80os2tkPSMdPTk2BnqWl
+    local_path: data\processed\Cell_Phones_and_Accessories\review_stats_Cell_Phones_and_Accessories.json
+  review_stats_Clothing_Shoes_and_Jewelry:
+    drive_file_id: 1RnDUJ6MT2NYG_hL3AD2gqasszXvjShGO
+    local_path: data\processed\Clothing_Shoes_and_Jewelry\review_stats_Clothing_Shoes_and_Jewelry.json
+  review_stats_Digital_Music:
+    drive_file_id: 1DucBh-HxP4Ff766oGx6haj3_I8UoL8Tt
+    local_path: data\processed\Digital_Music\review_stats_Digital_Music.json
+  review_stats_Electronics:
+    drive_file_id: 1gAES88C5eWeNTZ6g8wAvtZfexJIjeX-H
+    local_path: data\processed\Electronics\review_stats_Electronics.json
+  review_stats_Gift_Cards:
+    drive_file_id: 1KTUClHCKVP3psncdlz99h0vqpmvdeNs4
+    local_path: data\processed\Gift_Cards\review_stats_Gift_Cards.json
+  review_stats_Grocery_and_Gourmet_Food:
+    drive_file_id: 1KVlS-Qntn-mqdH0b9kWXJPdbmwkeEjg_
+    local_path: data\processed\Grocery_and_Gourmet_Food\review_stats_Grocery_and_Gourmet_Food.json
+  review_stats_Handmade_Products:
+    drive_file_id: 11Wwfz_l5_BTPVgApZ4kq60OQv18b_cs-
+    local_path: data\processed\Handmade_Products\review_stats_Handmade_Products.json
+  review_stats_Health_and_Household:
+    drive_file_id: 1ABaP_f-F3Cb5Gw8lHubRTtYYGxciEDTC
+    local_path: data\processed\Health_and_Household\review_stats_Health_and_Household.json
+  review_stats_Health_and_Personal_Care:
+    drive_file_id: 1zXQ28jcmOvXRoTX62XMi6zTSW6syfWsr
+    local_path: data\processed\Health_and_Personal_Care\review_stats_Health_and_Personal_Care.json
+  review_stats_Home_and_Kitchen:
+    drive_file_id: 1NZfr0FyyqUyLQscmtglM7P-OkLQOSJAX
+    local_path: data\processed\Home_and_Kitchen\review_stats_Home_and_Kitchen.json
+  review_stats_Industrial_and_Scientific:
+    drive_file_id: 1jdcHueF0IMmwCs-dywhDN0QNZGoEiyg5
+    local_path: data\processed\Industrial_and_Scientific\review_stats_Industrial_and_Scientific.json
+  review_stats_Kindle_Store:
+    drive_file_id: 1fP-8I1zkqr3PdBTbDBkaeHsH1ruRKU60
+    local_path: data\processed\Kindle_Store\review_stats_Kindle_Store.json
+  review_stats_Magazine_Subscriptions:
+    drive_file_id: 1M_XTS_0hbBwjUEXHyXldYtNTtJ_Muml0
+    local_path: data\processed\Magazine_Subscriptions\review_stats_Magazine_Subscriptions.json
+  review_stats_Movies_and_TV:
+    drive_file_id: 1p7QgRLF_JQXM1l5TPYAXB-WalpYJBCMJ
+    local_path: data\processed\Movies_and_TV\review_stats_Movies_and_TV.json
+  review_stats_Musical_Instruments:
+    drive_file_id: 1euablZNt3RI3QRwQNaUyK_Z-p-EettA_
+    local_path: data\processed\Musical_Instruments\review_stats_Musical_Instruments.json
+  review_stats_Office_Products:
+    drive_file_id: 1mW6sObcpaXR0Ff65UIglY7EUIAvFI99H
+    local_path: data\processed\Office_Products\review_stats_Office_Products.json
+  review_stats_Patio_Lawn_and_Garden:
+    drive_file_id: 1eVt-DTsy9FIQAlnrqdIuQUstwmoPQrN-
+    local_path: data\processed\Patio_Lawn_and_Garden\review_stats_Patio_Lawn_and_Garden.json
+  review_stats_Pet_Supplies:
+    drive_file_id: 1RPiv2WI6zR6aVj88OcnUCMjIiRKSTZMt
+    local_path: data\processed\Pet_Supplies\review_stats_Pet_Supplies.json
+  review_stats_Software:
+    drive_file_id: 1Y1POr34SGawGYKeOUoqFW9y_D7oeZrrm
+    local_path: data\processed\Software\review_stats_Software.json
+  review_stats_Sports_and_Outdoors:
+    drive_file_id: 1YCk0x1NpJMvHHsxrQSkcogSOulIYou4E
+    local_path: data\processed\Sports_and_Outdoors\review_stats_Sports_and_Outdoors.json
+  review_stats_Subscription_Boxes:
+    drive_file_id: 1pFPD196B3IEbkTTmDY4r-QhCnGZB8YeN
+    local_path: data\processed\Subscription_Boxes\review_stats_Subscription_Boxes.json
+  review_stats_Tools_and_Home_Improvement:
+    drive_file_id: 1GTgHA1sP_-tHhHnWhiRT8ejhNcD7IsTJ
+    local_path: data\processed\Tools_and_Home_Improvement\review_stats_Tools_and_Home_Improvement.json
+  review_stats_Toys_and_Games:
+    drive_file_id: 17W17htM90w9a3eIT12176tn0LboVTkL1
+    local_path: data\processed\Toys_and_Games\review_stats_Toys_and_Games.json
+  review_stats_Unknown:
+    drive_file_id: 1HybTNpTDuL9-AV0NzufiDOsaHONX_J72
+    local_path: data\processed\Unknown\review_stats_Unknown.json
+  top_item_features_All_Beauty:
+    local_path: data\processed\All_Beauty\top_item_features_All_Beauty.parquet
+  top_user_features_All_Beauty:
+    local_path: data\processed\All_Beauty\top_user_features_All_Beauty.parquet
+  top_user_review_stats_All_Beauty:
+    local_path: data\processed\All_Beauty\top_user_review_stats_All_Beauty.json
+  top_user_reviews_All_Beauty:
+    local_path: data\processed\All_Beauty\top_user_reviews_All_Beauty.parquet
+  top_users:
+    drive_file_id: 1cmbXDCo5s32YzTnQVrDLxpwxZYgoXhtj
+    local_path: data\global\top_users.parquet
+  top_users_helpful_hist_All_Beauty:
+    local_path: data\processed\All_Beauty\top_users_helpful_hist_All_Beauty.png
+  top_users_rating_hist_All_Beauty:
+    local_path: data\processed\All_Beauty\top_users_rating_hist_All_Beauty.png
+  user_distinct_categories_hist:
+    drive_file_id: 1vXf0kMgMFkPo7z50kisSLVDapPIYW5IG
+    local_path: data\global\user_distinct_categories_hist.png
+  user_purchases_hist_All_Beauty:
+    drive_file_id: 1twaCMuN7HazQsLfheezmzwicFYJEOtSp
+    local_path: data\processed\All_Beauty\user_purchases_hist_All_Beauty.png
+  user_purchases_hist_Amazon_Fashion:
+    drive_file_id: 1C8EBhnP54XL9Qn46mxuzvPLduwNsOnCm
+    local_path: data\processed\Amazon_Fashion\user_purchases_hist_Amazon_Fashion.png
+  user_purchases_hist_Appliances:
+    drive_file_id: 18Pj8RCMTwhCs8mjA9iJrvtpd-xRDuSD8
+    local_path: data\processed\Appliances\user_purchases_hist_Appliances.png
+  user_purchases_hist_Arts_Crafts_and_Sewing:
+    drive_file_id: 1gmImNBIZKyF9Ae4ONiHY5KC1v0COn4kl
+    local_path: data\processed\Arts_Crafts_and_Sewing\user_purchases_hist_Arts_Crafts_and_Sewing.png
+  user_purchases_hist_Automotive:
+    drive_file_id: 1ep85BUGB2j0dvieZqgw26NXZZw3Fh5qQ
+    local_path: data\processed\Automotive\user_purchases_hist_Automotive.png
+  user_purchases_hist_Baby_Products:
+    drive_file_id: 1DRNXrCTe_rdJFUUDDk7f_s_arSzMDvN6
+    local_path: data\processed\Baby_Products\user_purchases_hist_Baby_Products.png
+  user_purchases_hist_Beauty_and_Personal_Care:
+    drive_file_id: 16J1DfQebTwdBGSlcEkeYwx_wOhNjlFhF
+    local_path: data\processed\Beauty_and_Personal_Care\user_purchases_hist_Beauty_and_Personal_Care.png
+  user_purchases_hist_Books:
+    drive_file_id: 1dg3uUyz8NHBrhl-93yWfvO4SYoN8X9V2
+    local_path: data\processed\Books\user_purchases_hist_Books.png
+  user_purchases_hist_CDs_and_Vinyl:
+    drive_file_id: 1dKLXCucHpEPkz7bPnXmlhcAH1o-pvpzg
+    local_path: data\processed\CDs_and_Vinyl\user_purchases_hist_CDs_and_Vinyl.png
+  user_purchases_hist_Cell_Phones_and_Accessories:
+    drive_file_id: 1DQF2AuFxEKp1R4FYr-_azGX681sjToh8
+    local_path: data\processed\Cell_Phones_and_Accessories\user_purchases_hist_Cell_Phones_and_Accessories.png
+  user_purchases_hist_Clothing_Shoes_and_Jewelry:
+    drive_file_id: 1Cru8VI2Bzvy6_RqOqtYs6O_q8mhaLABV
+    local_path: data\processed\Clothing_Shoes_and_Jewelry\user_purchases_hist_Clothing_Shoes_and_Jewelry.png
+  user_purchases_hist_Digital_Music:
+    drive_file_id: 1OtLj-6pyoqr4X-vhdvYjG1XmkXznbeJp
+    local_path: data\processed\Digital_Music\user_purchases_hist_Digital_Music.png
+  user_purchases_hist_Electronics:
+    drive_file_id: 11Qac8kTBWx3u86wWfBBy4iG6nPeGUASA
+    local_path: data\processed\Electronics\user_purchases_hist_Electronics.png
+  user_purchases_hist_Gift_Cards:
+    drive_file_id: 1KTD0JllBIYBDGfoUF8ji4bvhCSfVA8Ij
+    local_path: data\processed\Gift_Cards\user_purchases_hist_Gift_Cards.png
+  user_purchases_hist_Grocery_and_Gourmet_Food:
+    drive_file_id: 1HsU5HIYQVkF_cX4R0k4KhLKcohg53D6e
+    local_path: data\processed\Grocery_and_Gourmet_Food\user_purchases_hist_Grocery_and_Gourmet_Food.png
+  user_purchases_hist_Handmade_Products:
+    drive_file_id: 1Z46PpHmpVbKijy5J1r5vrYsvcgkrK_uD
+    local_path: data\processed\Handmade_Products\user_purchases_hist_Handmade_Products.png
+  user_purchases_hist_Health_and_Household:
+    drive_file_id: 1RMluHj1SOoh9KAHvgl3Td-8zw5Aj_Vrw
+    local_path: data\processed\Health_and_Household\user_purchases_hist_Health_and_Household.png
+  user_purchases_hist_Health_and_Personal_Care:
+    drive_file_id: 1RsR3oPYUn1HHQu6fiXsFLn_s9HWb95TG
+    local_path: data\processed\Health_and_Personal_Care\user_purchases_hist_Health_and_Personal_Care.png
+  user_purchases_hist_Home_and_Kitchen:
+    drive_file_id: 1t3JlaK5UQT8ORgLL_V46Mk1rU8EJoB6A
+    local_path: data\processed\Home_and_Kitchen\user_purchases_hist_Home_and_Kitchen.png
+  user_purchases_hist_Industrial_and_Scientific:
+    drive_file_id: 1dwl6ptulY2hnisciDt-2bRDN5FHYWeWU
+    local_path: data\processed\Industrial_and_Scientific\user_purchases_hist_Industrial_and_Scientific.png
+  user_purchases_hist_Kindle_Store:
+    drive_file_id: 1OsRPQArV-bEUJiRn0hL5wbAV-tjrtRDX
+    local_path: data\processed\Kindle_Store\user_purchases_hist_Kindle_Store.png
+  user_purchases_hist_Magazine_Subscriptions:
+    drive_file_id: 1EEQeEh5PkcPXC4d0NPt_cGg_NIelLoiG
+    local_path: data\processed\Magazine_Subscriptions\user_purchases_hist_Magazine_Subscriptions.png
+  user_purchases_hist_Movies_and_TV:
+    drive_file_id: 1_VrtquagXlNkPKbS7ivyTMGLC9TpeKtY
+    local_path: data\processed\Movies_and_TV\user_purchases_hist_Movies_and_TV.png
+  user_purchases_hist_Musical_Instruments:
+    drive_file_id: 1V4yAsN6qlG-XVr7dWOZ6kf3S7AHD5xW-
+    local_path: data\processed\Musical_Instruments\user_purchases_hist_Musical_Instruments.png
+  user_purchases_hist_Office_Products:
+    drive_file_id: 1DH5UmBGZjPkNaf3UTKYnOP-tNy-b7__j
+    local_path: data\processed\Office_Products\user_purchases_hist_Office_Products.png
+  user_purchases_hist_Patio_Lawn_and_Garden:
+    drive_file_id: 1oYKbvh4uAovrGZu1s-cFz5QLgcpu9sHY
+    local_path: data\processed\Patio_Lawn_and_Garden\user_purchases_hist_Patio_Lawn_and_Garden.png
+  user_purchases_hist_Pet_Supplies:
+    drive_file_id: 1lOfVrVzxvmX7qgk_lztyEouohEpsaDEm
+    local_path: data\processed\Pet_Supplies\user_purchases_hist_Pet_Supplies.png
+  user_purchases_hist_Software:
+    drive_file_id: 1YRacEevdjYDjyosyW4pUFuf3n5JzQXEz
+    local_path: data\processed\Software\user_purchases_hist_Software.png
+  user_purchases_hist_Sports_and_Outdoors:
+    drive_file_id: 1D_kdaKLSwHrDtochCAGxnGMR8rXoZfzM
+    local_path: data\processed\Sports_and_Outdoors\user_purchases_hist_Sports_and_Outdoors.png
+  user_purchases_hist_Subscription_Boxes:
+    drive_file_id: 18Ooe4MrC1xARHSTjx1HSaMQj28PIzu3F
+    local_path: data\processed\Subscription_Boxes\user_purchases_hist_Subscription_Boxes.png
+  user_purchases_hist_Tools_and_Home_Improvement:
+    drive_file_id: 1kw9huCQcbxxK1WWC9UEi2k6TdiiA-aK0
+    local_path: data\processed\Tools_and_Home_Improvement\user_purchases_hist_Tools_and_Home_Improvement.png
+  user_purchases_hist_Toys_and_Games:
+    drive_file_id: 1ry5Wdy9g2wFG4uMhd2CVlxwX8GXjvt8c
+    local_path: data\processed\Toys_and_Games\user_purchases_hist_Toys_and_Games.png
+  user_purchases_hist_Unknown:
+    drive_file_id: 17SJdAUM3xKt0pSGGKPmF7SXQSr6tTtNa
+    local_path: data\processed\Unknown\user_purchases_hist_Unknown.png
+  user_total_purchases_hist:
+    drive_file_id: 1I8IG6u2QBENemj-uqOZl9MN7XH7qvnhZ
+    local_path: data\global\user_total_purchases_hist.png
+raw:
+  .DS_Store:
+    drive_file_id: 1jPtqhhBKtHELaG27lY8b1dGTwIEhRyUK
+    local_path: data\raw\.DS_Store
+  Toys_and_Games.jsonl.gz:
+    local_path: data\raw\reviews\Toys_and_Games.jsonl.gz
+  all_categories.txt:
+    drive_file_id: 1j7V7kg_zT29jcZVC70lewHRN2qyzfx-p
+    local_path: data\raw\all_categories.txt
