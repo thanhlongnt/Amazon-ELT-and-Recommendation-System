@@ -1,6 +1,11 @@
 .venv
 asin2category.json
 *.jsonl.gz
+*.pyc
+__pycache__/
+.ipynb_checkpoints/
 *.parquet
 client_secrets.json
 client_secret.json
+pydrive_credentials.json
+data_registry.yaml

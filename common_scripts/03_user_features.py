@@ -49,6 +49,8 @@ from data_io import (  # noqa: E402
     ensure_local_path,
     resync_registry,
     upload_to_drive,
+    delete_remote_by_rel_path,
+    remote_file_exists_by_rel_path,
 )
 
 
@@ -446,26 +448,86 @@ def process_category(
 ):
     print(f"\n=== Category (top-users filtered): {category} ===")
 
+    # Paths and expected outputs (used for lock + skip decisions)
+    review_gz = raw_dir / "reviews" / f"{category}.jsonl.gz"
+    meta_gz = raw_dir / "meta" / f"meta_{category}.jsonl.gz"
+    review_url = REVIEW_URL_TEMPLATE.format(category=category)
+    meta_url = META_URL_TEMPLATE.format(category=category)
+
+    cat_proc_dir = processed_dir / category
+    cat_proc_dir.mkdir(parents=True, exist_ok=True)
+
+    out_reviews_parquet = cat_proc_dir / f"top_user_reviews_{category}.parquet"
+    out_user_features = cat_proc_dir / f"top_user_features_{category}.parquet"
+    out_item_features = cat_proc_dir / f"top_item_features_{category}.parquet"
+    out_stats_json = cat_proc_dir / f"top_user_review_stats_{category}.json"
+    rating_png = cat_proc_dir / f"top_users_rating_hist_{category}.png"
+    helpful_png = cat_proc_dir / f"top_users_helpful_hist_{category}.png"
+
+    expected_outputs = [
+        out_reviews_parquet,
+        out_user_features,
+        out_item_features,
+        out_stats_json,
+        rating_png,
+        helpful_png,
+    ]
+
     # ----------------- Locking (Drive-aware, per-category) -------------------
     lock_dir = repo_root / "data" / "locks" / "03_user_features"
-    lock_path = lock_dir / f"{category}.lock"
-
-    # Try to hydrate remote lock before checking
-    rel_lock = str(lock_path.relative_to(repo_root))
-    try:
-        ensure_local_path(rel_lock)
-    except Exception:
-        pass
-
     lock_dir.mkdir(parents=True, exist_ok=True)
+    lock_path = lock_dir / f"{category}.lock"
+    rel_lock = str(lock_path.relative_to(repo_root))
+
+    # If a remote lock exists, hydrate it locally (if needed)
+    try:
+        if remote_file_exists_by_rel_path(rel_lock) and not lock_path.exists():
+            ensure_local_path(rel_lock)
+    except Exception:
+        # If Drive is temporarily unavailable, we'll fall back to local state
+        pass
 
     if lock_path.exists():
         print(
             f"  [lock] Detected existing lock for {category} at {lock_path}. "
-            "Skipping this category."
+            "Checking whether category is fully completed..."
         )
-        return
+        # Pull any missing outputs from Drive so we can make a real decision
+        ensure_outputs_from_drive(expected_outputs, repo_root)
 
+        if all(p.exists() for p in expected_outputs):
+            # Category is fully done; clear lock and skip
+            print(
+                "  [lock] All expected outputs exist locally; "
+                "treating category as complete and clearing lock."
+            )
+            try:
+                lock_path.unlink()
+            except OSError:
+                pass
+            try:
+                delete_remote_by_rel_path(rel_lock)
+            except Exception as e:
+                print(f"  [lock] WARNING: failed to delete remote lock: {e}")
+            print(f"=== Done category (completed; lock cleared): {category} ===")
+            return
+        else:
+            # Stale lock: outputs missing, so we take over
+            print(
+                "  [lock] Lock exists but outputs are incomplete; "
+                "assuming stale lock and taking over."
+            )
+            try:
+                lock_path.unlink()
+            except OSError:
+                pass
+            try:
+                delete_remote_by_rel_path(rel_lock)
+            except Exception as e:
+                print(f"  [lock] WARNING: failed to delete remote lock: {e}")
+
+    # If we get here, either there was no lock or we just cleared a stale one.
+    # Create a fresh lock for this run and push it to Drive.
     with open(lock_path, "w", encoding="utf-8") as lf:
         lf.write("locked\n")
     try:
@@ -784,6 +846,13 @@ def process_category(
                 lock_path.unlink()
             except OSError:
                 pass
+
+        try:
+            rel_lock = str(lock_path.relative_to(repo_root))
+            delete_remote_by_rel_path(rel_lock)
+        except Exception:
+            # If Drive is down or the file is already gone, ignore
+            pass
 
 
 # --------------------------------------------------------------------

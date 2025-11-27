@@ -256,3 +256,102 @@ def upload_to_drive(local_path: Path) -> str:
     file_id = gfile["id"]
     print(f"[data_io] Uploaded {rel} to Drive (file_id={file_id})")
     return file_id
+
+def remote_file_exists_by_rel_path(rel_path: str) -> bool:
+    """
+    Check if a file with the given repo-relative path exists on Drive
+    under the shared 'data/' tree.
+
+    rel_path is something like: 'data/processed/Category/file.parquet'
+    or 'data/locks/03_user_features/All_Beauty.lock'
+    """
+    from pathlib import Path
+
+    drive, root_id = _get_drive_and_root()
+    rel = Path(rel_path)
+
+    # Ensure path is anchored under 'data/...'
+    parts = rel.parts
+    if parts and parts[0] == "data":
+        parts = parts[1:]
+    else:
+        parts = ("data",) + parts
+
+    if not parts:
+        return False
+
+    folder_parts, filename = parts[:-1], parts[-1]
+    parent_id = root_id
+
+    def _q_escape(s: str) -> str:
+        return s.replace("'", "\\'")
+
+    # Walk down folder chain
+    for folder_name in folder_parts:
+        folder_name_q = _q_escape(folder_name)
+        query = (
+            f"'{parent_id}' in parents and "
+            f"title = '{folder_name_q}' and "
+            "mimeType = 'application/vnd.google-apps.folder' and trashed=false"
+        )
+        flist = drive.ListFile({"q": query}).GetList()
+        if not flist:
+            return False
+        parent_id = flist[0]["id"]
+
+    filename_q = _q_escape(filename)
+    query = (
+        f"'{parent_id}' in parents and "
+        f"title = '{filename_q}' and trashed=false"
+    )
+    files = drive.ListFile({"q": query}).GetList()
+    return bool(files)
+
+
+def delete_remote_by_rel_path(rel_path: str) -> None:
+    """
+    Delete (if present) a remote file at the given repo-relative path from Drive.
+
+    rel_path example: 'data/locks/03_user_features/All_Beauty.lock'
+    """
+    from pathlib import Path
+
+    drive, root_id = _get_drive_and_root()
+    rel = Path(rel_path)
+
+    parts = rel.parts
+    if parts and parts[0] == "data":
+        parts = parts[1:]
+    else:
+        parts = ("data",) + parts
+
+    if not parts:
+        return
+
+    folder_parts, filename = parts[:-1], parts[-1]
+    parent_id = root_id
+
+    def _q_escape(s: str) -> str:
+        return s.replace("'", "\\'")
+
+    # Walk folders
+    for folder_name in folder_parts:
+        folder_name_q = _q_escape(folder_name)
+        query = (
+            f"'{parent_id}' in parents and "
+            f"title = '{folder_name_q}' and "
+            "mimeType = 'application/vnd.google-apps.folder' and trashed=false"
+        )
+        flist = drive.ListFile({"q": query}).GetList()
+        if not flist:
+            return  # folder chain missing -> nothing to delete
+        parent_id = flist[0]["id"]
+
+    filename_q = _q_escape(filename)
+    query = (
+        f"'{parent_id}' in parents and "
+        f"title = '{filename_q}' and trashed=false"
+    )
+    files = drive.ListFile({"q": query}).GetList()
+    for f in files:
+        f.Delete()

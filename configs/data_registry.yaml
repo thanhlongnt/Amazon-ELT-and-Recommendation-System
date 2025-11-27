@@ -1,10 +1,10 @@
 drive_root_folder_id: 1VlvbLS_p-tGwqFVufh8jd6zLPz_pxnu-
 locks:
-  All_Beauty:
-    drive_file_id: 1k_eK78W3KkpHH_RbiyKsRJeyYdBkRe73
-    local_path: data\locks\03_user_features\All_Beauty.lock
-  Toys_and_Games:
-    local_path: data\locks\03_user_features\Toys_and_Games.lock
+  Arts_Crafts_and_Sewing:
+    drive_file_id: 1Qql_B0eFan5gZcvGJVwYYK_ICqOCuYms
+    local_path: data\locks\03_user_features\Arts_Crafts_and_Sewing.lock
+  Office_Products:
+    local_path: data\locks\03_user_features\Office_Products.lock
 processed:
   .DS_Store:
     drive_file_id: 1mKbQfJU236L2i7hrkB-gtzh5JwzV2nWs
@@ -407,19 +407,163 @@ processed:
     local_path: data\processed\Unknown\review_stats_Unknown.json
   top_item_features_All_Beauty:
     local_path: data\processed\All_Beauty\top_item_features_All_Beauty.parquet
+  top_item_features_Cell_Phones_and_Accessories:
+    drive_file_id: 1rGmTuTN3E2hQ8yqkUH8Kez6Gw0orLNXW
+    local_path: data\processed\Cell_Phones_and_Accessories\top_item_features_Cell_Phones_and_Accessories.parquet
+  top_item_features_Electronics:
+    local_path: data\processed\Electronics\top_item_features_Electronics.parquet
+  top_item_features_Gift_Cards:
+    drive_file_id: 1bjRHZ4ydvxWEUNaZsaRPxPCMvXEWJH3R
+    local_path: data\processed\Gift_Cards\top_item_features_Gift_Cards.parquet
+  top_item_features_Handmade_Products:
+    drive_file_id: 1aGntgOSjWq-I9CtAVOiWYPLaSIP_Oq_a
+    local_path: data\processed\Handmade_Products\top_item_features_Handmade_Products.parquet
+  top_item_features_Industrial_and_Scientific:
+    drive_file_id: 1PhNljRaPYC7OxapcrLpCeVTk7l-f5vpf
+    local_path: data\processed\Industrial_and_Scientific\top_item_features_Industrial_and_Scientific.parquet
+  top_item_features_Musical_Instruments:
+    drive_file_id: 1e_cdJ_huTGj2TiCvhLnz2_wAWpQaf3dW
+    local_path: data\processed\Musical_Instruments\top_item_features_Musical_Instruments.parquet
+  top_item_features_Toys_and_Games:
+    drive_file_id: 1ab7F2AfbjliuxPQjnxYInEkB5MrTM9vF
+    local_path: data\processed\Toys_and_Games\top_item_features_Toys_and_Games.parquet
   top_user_features_All_Beauty:
     local_path: data\processed\All_Beauty\top_user_features_All_Beauty.parquet
+  top_user_features_Arts_Crafts_and_Sewing:
+    drive_file_id: 1Iddg8O63CS4shh9UDfnyf3bz-6YCPb8S
+    local_path: data\processed\Arts_Crafts_and_Sewing\top_user_features_Arts_Crafts_and_Sewing.parquet
+  top_user_features_Cell_Phones_and_Accessories:
+    drive_file_id: 1ccY1v-hPURVoJeT1mg5o0YnYSnAgK1S8
+    local_path: data\processed\Cell_Phones_and_Accessories\top_user_features_Cell_Phones_and_Accessories.parquet
+  top_user_features_Electronics:
+    local_path: data\processed\Electronics\top_user_features_Electronics.parquet
+  top_user_features_Gift_Cards:
+    drive_file_id: 19U8OZ1gGPDUqWhz-UdEPIS03YbZRgz-O
+    local_path: data\processed\Gift_Cards\top_user_features_Gift_Cards.parquet
+  top_user_features_Handmade_Products:
+    drive_file_id: 1C-jp-4YjvNy3nq0lftvCpEEjrxjEaF8e
+    local_path: data\processed\Handmade_Products\top_user_features_Handmade_Products.parquet
+  top_user_features_Industrial_and_Scientific:
+    drive_file_id: 1mzpaigOpcSQlsvreyFKgRo5TckI6Oobz
+    local_path: data\processed\Industrial_and_Scientific\top_user_features_Industrial_and_Scientific.parquet
+  top_user_features_Musical_Instruments:
+    drive_file_id: 1Nl54lXXDRdPKcjpqd1jvwHmTVOSCU87Q
+    local_path: data\processed\Musical_Instruments\top_user_features_Musical_Instruments.parquet
+  top_user_features_Toys_and_Games:
+    drive_file_id: 1Jlxqr2rkhu4WJV_7xjnd1YfzlZFernJL
+    local_path: data\processed\Toys_and_Games\top_user_features_Toys_and_Games.parquet
   top_user_review_stats_All_Beauty:
     local_path: data\processed\All_Beauty\top_user_review_stats_All_Beauty.json
+  top_user_review_stats_Arts_Crafts_and_Sewing:
+    local_path: data\processed\Arts_Crafts_and_Sewing\top_user_review_stats_Arts_Crafts_and_Sewing.json
+  top_user_review_stats_Baby_Products:
+    local_path: data\processed\Baby_Products\top_user_review_stats_Baby_Products.json
+  top_user_review_stats_Cell_Phones_and_Accessories:
+    drive_file_id: 18WWR1OMNaKYoVYTuj6ii6rEL8dipcIdn
+    local_path: data\processed\Cell_Phones_and_Accessories\top_user_review_stats_Cell_Phones_and_Accessories.json
+  top_user_review_stats_Electronics:
+    local_path: data\processed\Electronics\top_user_review_stats_Electronics.json
+  top_user_review_stats_Gift_Cards:
+    drive_file_id: 1WljQZeeKsDYABJ-fxHyFeLOKs41lOcNU
+    local_path: data\processed\Gift_Cards\top_user_review_stats_Gift_Cards.json
+  top_user_review_stats_Handmade_Products:
+    drive_file_id: 1mlSxOLQRm4OP5L4XvMgUQTbsnWtKlpM2
+    local_path: data\processed\Handmade_Products\top_user_review_stats_Handmade_Products.json
+  top_user_review_stats_Health_and_Household:
+    local_path: data\processed\Health_and_Household\top_user_review_stats_Health_and_Household.json
+  top_user_review_stats_Industrial_and_Scientific:
+    drive_file_id: 13IKk0GSMrN_hbgMmmb1Whth3uhSKAquj
+    local_path: data\processed\Industrial_and_Scientific\top_user_review_stats_Industrial_and_Scientific.json
+  top_user_review_stats_Musical_Instruments:
+    drive_file_id: 12wEGx9gTOs3s62frYBvYrbwqiaPZ40Qm
+    local_path: data\processed\Musical_Instruments\top_user_review_stats_Musical_Instruments.json
+  top_user_review_stats_Toys_and_Games:
+    drive_file_id: 18ovaVsALCJmGS_bcKwcvoAZynZTHL9uy
+    local_path: data\processed\Toys_and_Games\top_user_review_stats_Toys_and_Games.json
   top_user_reviews_All_Beauty:
     local_path: data\processed\All_Beauty\top_user_reviews_All_Beauty.parquet
+  top_user_reviews_Arts_Crafts_and_Sewing:
+    drive_file_id: 1_RGBnHWxTNjdHLNWQFo6IQ3xf9lL3mW0
+    local_path: data\processed\Arts_Crafts_and_Sewing\top_user_reviews_Arts_Crafts_and_Sewing.parquet
+  top_user_reviews_Cell_Phones_and_Accessories:
+    drive_file_id: 1J221f0b_PWZr1uQ2is66fXVgSx0ZhrdP
+    local_path: data\processed\Cell_Phones_and_Accessories\top_user_reviews_Cell_Phones_and_Accessories.parquet
+  top_user_reviews_Electronics:
+    local_path: data\processed\Electronics\top_user_reviews_Electronics.parquet
+  top_user_reviews_Gift_Cards:
+    drive_file_id: 1W341EvpPacF1K8y2cBoNEa4a_ycBt-fG
+    local_path: data\processed\Gift_Cards\top_user_reviews_Gift_Cards.parquet
+  top_user_reviews_Handmade_Products:
+    drive_file_id: 1mLjIsJS8LFwB5RXbMIfn8smBKqyIr5cL
+    local_path: data\processed\Handmade_Products\top_user_reviews_Handmade_Products.parquet
+  top_user_reviews_Industrial_and_Scientific:
+    drive_file_id: 1M8182bI-ufhx6EdxafrJD_cZjRstOAYe
+    local_path: data\processed\Industrial_and_Scientific\top_user_reviews_Industrial_and_Scientific.parquet
+  top_user_reviews_Musical_Instruments:
+    drive_file_id: 1ZC-7_Q38NQ3IhIugYk8UdJkTJ0BVXmRJ
+    local_path: data\processed\Musical_Instruments\top_user_reviews_Musical_Instruments.parquet
+  top_user_reviews_Toys_and_Games:
+    drive_file_id: 1xC4NfjwYQYvXaANyzEvbroQFzgP73pzt
+    local_path: data\processed\Toys_and_Games\top_user_reviews_Toys_and_Games.parquet
   top_users:
     drive_file_id: 1cmbXDCo5s32YzTnQVrDLxpwxZYgoXhtj
     local_path: data\global\top_users.parquet
   top_users_helpful_hist_All_Beauty:
     local_path: data\processed\All_Beauty\top_users_helpful_hist_All_Beauty.png
+  top_users_helpful_hist_Arts_Crafts_and_Sewing:
+    local_path: data\processed\Arts_Crafts_and_Sewing\top_users_helpful_hist_Arts_Crafts_and_Sewing.png
+  top_users_helpful_hist_Baby_Products:
+    local_path: data\processed\Baby_Products\top_users_helpful_hist_Baby_Products.png
+  top_users_helpful_hist_Cell_Phones_and_Accessories:
+    drive_file_id: 1SlcRzNeuuzBnQH_Yw4M18ThxQJyS-Fvo
+    local_path: data\processed\Cell_Phones_and_Accessories\top_users_helpful_hist_Cell_Phones_and_Accessories.png
+  top_users_helpful_hist_Electronics:
+    local_path: data\processed\Electronics\top_users_helpful_hist_Electronics.png
+  top_users_helpful_hist_Gift_Cards:
+    drive_file_id: 1s8FoDIc_ZyEPnZCV6zDUF-4E23Pwps4y
+    local_path: data\processed\Gift_Cards\top_users_helpful_hist_Gift_Cards.png
+  top_users_helpful_hist_Handmade_Products:
+    drive_file_id: 17wWOPR5ATK1KZqRMFV-KY5m9luEHYKrU
+    local_path: data\processed\Handmade_Products\top_users_helpful_hist_Handmade_Products.png
+  top_users_helpful_hist_Health_and_Household:
+    local_path: data\processed\Health_and_Household\top_users_helpful_hist_Health_and_Household.png
+  top_users_helpful_hist_Industrial_and_Scientific:
+    drive_file_id: 1_n68OV1SXO8lWrlXjWa_FjOWRm3wcxre
+    local_path: data\processed\Industrial_and_Scientific\top_users_helpful_hist_Industrial_and_Scientific.png
+  top_users_helpful_hist_Musical_Instruments:
+    drive_file_id: 17asgSxU0LIkxG4ae_GqnLi5giIdKhCA2
+    local_path: data\processed\Musical_Instruments\top_users_helpful_hist_Musical_Instruments.png
+  top_users_helpful_hist_Toys_and_Games:
+    drive_file_id: 10Fgo10IRG6mP2e-3507N6s5nI3O6SRjS
+    local_path: data\processed\Toys_and_Games\top_users_helpful_hist_Toys_and_Games.png
   top_users_rating_hist_All_Beauty:
     local_path: data\processed\All_Beauty\top_users_rating_hist_All_Beauty.png
+  top_users_rating_hist_Arts_Crafts_and_Sewing:
+    local_path: data\processed\Arts_Crafts_and_Sewing\top_users_rating_hist_Arts_Crafts_and_Sewing.png
+  top_users_rating_hist_Baby_Products:
+    local_path: data\processed\Baby_Products\top_users_rating_hist_Baby_Products.png
+  top_users_rating_hist_Cell_Phones_and_Accessories:
+    drive_file_id: 1giNskJhpNtlLA-pRSrgdRskPO580DARQ
+    local_path: data\processed\Cell_Phones_and_Accessories\top_users_rating_hist_Cell_Phones_and_Accessories.png
+  top_users_rating_hist_Electronics:
+    local_path: data\processed\Electronics\top_users_rating_hist_Electronics.png
+  top_users_rating_hist_Gift_Cards:
+    drive_file_id: 1gH6cwFKUsOTe52DSs-rc7_Dj5PusnJLc
+    local_path: data\processed\Gift_Cards\top_users_rating_hist_Gift_Cards.png
+  top_users_rating_hist_Handmade_Products:
+    drive_file_id: 1NhNYY-3VEdo0mO37ZMozOAJruCRex7eW
+    local_path: data\processed\Handmade_Products\top_users_rating_hist_Handmade_Products.png
+  top_users_rating_hist_Health_and_Household:
+    local_path: data\processed\Health_and_Household\top_users_rating_hist_Health_and_Household.png
+  top_users_rating_hist_Industrial_and_Scientific:
+    drive_file_id: 16PRct3x6KZEmBrNl6XLP3qWMzX06dXrC
+    local_path: data\processed\Industrial_and_Scientific\top_users_rating_hist_Industrial_and_Scientific.png
+  top_users_rating_hist_Musical_Instruments:
+    drive_file_id: 1Sj_R9FDqQohYrH7NQv3Iy6l7fqynyozU
+    local_path: data\processed\Musical_Instruments\top_users_rating_hist_Musical_Instruments.png
+  top_users_rating_hist_Toys_and_Games:
+    drive_file_id: 1I_KjEmJa2UzqkYEYC6Ip06T-Ox9YAspV
+    local_path: data\processed\Toys_and_Games\top_users_rating_hist_Toys_and_Games.png
   user_distinct_categories_hist:
     drive_file_id: 1vXf0kMgMFkPo7z50kisSLVDapPIYW5IG
     local_path: data\global\user_distinct_categories_hist.png
@@ -529,8 +673,14 @@ raw:
   .DS_Store:
     drive_file_id: 1jPtqhhBKtHELaG27lY8b1dGTwIEhRyUK
     local_path: data\raw\.DS_Store
-  Toys_and_Games.jsonl.gz:
-    local_path: data\raw\reviews\Toys_and_Games.jsonl.gz
+  Electronics.jsonl.gz:
+    local_path: data\raw\reviews\Electronics.jsonl.gz
+  Office_Products.jsonl.gz:
+    local_path: data\raw\reviews\Office_Products.jsonl.gz
   all_categories.txt:
     drive_file_id: 1j7V7kg_zT29jcZVC70lewHRN2qyzfx-p
     local_path: data\raw\all_categories.txt
+  meta_Electronics.jsonl.gz:
+    local_path: data\raw\meta\meta_Electronics.jsonl.gz
+  meta_Office_Products.jsonl.gz:
+    local_path: data\raw\meta\meta_Office_Products.jsonl.gz
