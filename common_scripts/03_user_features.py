@@ -31,10 +31,11 @@ Step-based skipping & Drive integration:
 import argparse
 import gzip
 import json
+import time
 import sys
 from collections import Counter, defaultdict
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -195,6 +196,15 @@ def parse_args() -> argparse.Namespace:
             "'all' = remove parquet, JSON, and PNGs."
         ),
     )
+    parser.add_argument(
+        "--progress-interval",
+        type=int,
+        default=1_000_000,
+        help=(
+            "Print in-category parse progress every N lines while streaming "
+            "the review .jsonl.gz (default: 1,000,000)."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -235,12 +245,22 @@ def load_item_meta(meta_gz: Path, category: str) -> Dict[str, Dict]:
         "(to attach item-level avg rating + categories)"
     )
 
+    first_bad = True
     with gzip.open(meta_gz, "rt", encoding="utf-8") as mf:
         for mline in mf:
             mline = mline.strip()
             if not mline:
                 continue
-            mobj = json.loads(mline)
+            try:
+                mobj = json.loads(mline)
+            except json.JSONDecodeError as e:
+                if first_bad:
+                    print(
+                        f"  [meta] WARNING: skipping malformed JSON line in "
+                        f"{category}: {e}"
+                    )
+                    first_bad = False
+                continue
 
             a = (
                 mobj.get("parent_asin")
@@ -336,6 +356,25 @@ def ensure_outputs_from_drive(paths: List[Path], repo_root: Path) -> None:
             pass
 
 
+def count_gzip_lines(path: Path, category: str) -> int:
+    """
+    One-time pre-pass to count total lines in a gzip JSONL file so that
+    we can report parse progress as N/total and estimate ETA.
+    """
+    print(f"  [scan] counting lines in {path} for {category}...")
+    start = time.time()
+    n = 0
+    # Use errors='ignore' to be robust to any stray bytes
+    with gzip.open(path, "rt", encoding="utf-8", errors="ignore") as f:
+        for _ in f:
+            n += 1
+    elapsed = time.time() - start
+    print(
+        f"  [scan] {category}: total_lines={n:,} (took {elapsed:.1f}s)"
+    )
+    return n
+
+
 # --------------------------------------------------------------------
 # Core per-category processing
 # --------------------------------------------------------------------
@@ -344,19 +383,29 @@ def parse_reviews_for_top_users(
     top_users_set,
     item_meta: Dict[str, Dict],
     category: str,
+    progress_interval: int,
+    total_lines: Optional[int],
 ) -> Tuple[pd.DataFrame, Counter, Counter, int]:
     """
     Stream the review JSONL.gz, filter to top users, attach item meta,
     and return:
       reviews_df, rating_hist, helpful_hist, n_users
+
+    progress_interval controls how often we log parse progress (in lines).
+    total_lines, if provided, lets us report percent complete and ETA.
     """
     rows = []
     per_user_counts = defaultdict(int)
     rating_hist = Counter()
     helpful_hist = Counter()
 
+    n_lines = 0
+    n_kept = 0
+    start_time = time.time()
+
     with gzip.open(review_gz, "rt", encoding="utf-8") as f:
         for line in f:
+            n_lines += 1
             line = line.strip()
             if not line:
                 continue
@@ -420,6 +469,36 @@ def parse_reviews_for_top_users(
 
             rows.append(row)
             per_user_counts[user_id] += 1
+            n_kept += 1
+
+            if progress_interval > 0 and n_lines % progress_interval == 0:
+                elapsed = time.time() - start_time
+                rate = n_lines / elapsed if elapsed > 0 else 0.0
+
+                if total_lines:
+                    frac = min(n_lines / total_lines, 1.0)
+                    pct = frac * 100.0
+                    eta_str = "unknown"
+                    if rate > 0:
+                        remaining = max(total_lines - n_lines, 0)
+                        eta_sec = remaining / rate
+                        mins = int(eta_sec // 60)
+                        secs = int(eta_sec % 60)
+                        eta_str = f"{mins}m {secs}s"
+                    print(
+                        f"    [parse] {category}: "
+                        f"{n_lines:,}/{total_lines:,} lines "
+                        f"({pct:5.1f}%), kept={n_kept:,}, "
+                        f"users_with_reviews={len(per_user_counts):,}, "
+                        f"rate={rate:,.0f} lines/s, ETA={eta_str}"
+                    )
+                else:
+                    print(
+                        f"    [parse] {category}: "
+                        f"lines_seen={n_lines:,}, kept={n_kept:,}, "
+                        f"users_with_reviews={len(per_user_counts):,}"
+                    )
+
             try:
                 if rating is not None:
                     rating_hist[float(rating)] += 1
@@ -427,10 +506,18 @@ def parse_reviews_for_top_users(
                 pass
             helpful_hist[hv_clipped] += 1
 
-    print(
-        f"  [done] filtered reviews rows={len(rows):,}, "
-        f"users_with_reviews={len(per_user_counts):,}"
-    )
+    if total_lines:
+        print(
+            f"  [done] filtered reviews rows={len(rows):,}, "
+            f"users_with_reviews={len(per_user_counts):,}, "
+            f"lines_seen={n_lines:,}/{total_lines:,}"
+        )
+    else:
+        print(
+            f"  [done] filtered reviews rows={len(rows):,}, "
+            f"users_with_reviews={len(per_user_counts):,}, "
+            f"lines_seen={n_lines:,}"
+        )
 
     reviews_df = pd.DataFrame(rows)
     return reviews_df, rating_hist, helpful_hist, len(per_user_counts)
@@ -441,10 +528,12 @@ def process_category(
     raw_dir: Path,
     processed_dir: Path,
     top_users_df: pd.DataFrame,
+    top_users_set,
     allow_download: bool,
     cleanup_raw: bool,
     cleanup_processed: str,
     repo_root: Path,
+    progress_interval: int,
 ):
     print(f"\n=== Category (top-users filtered): {category} ===")
 
@@ -584,11 +673,15 @@ def process_category(
         need_step3 = not out_item_features.exists()
         need_step4 = not (rating_png.exists() and helpful_png.exists())
 
+        total_lines: Optional[int] = None
+
         # We need the review gzip if we are going to re-parse
         if need_step1:
             ensure_raw_gzip_or_download(
                 review_gz, review_url, allow_download, repo_root
             )
+            # One-time pre-pass to get total number of lines for progress + ETA
+            total_lines = count_gzip_lines(review_gz, category)
 
         # We need meta if we are going to parse or create item-level aggregates
         need_meta = need_step1 or need_step3
@@ -610,7 +703,7 @@ def process_category(
                     item_meta = load_item_meta(meta_gz, category)
 
         # Build top_users set
-        top_users_set = set(top_users_df["user_id"].astype(str).tolist())
+        #top_users_set = set(top_users_df["user_id"].astype(str).tolist())
         print(
             f"  [info] top_users provided: {len(top_users_set)} users; filtering reviews..."
         )
@@ -634,7 +727,12 @@ def process_category(
             try:
                 reviews_df, rating_hist, helpful_hist, n_users = (
                     parse_reviews_for_top_users(
-                        review_gz, top_users_set, item_meta, category
+                        review_gz,
+                        top_users_set,
+                        item_meta,
+                        category,
+                        progress_interval,
+                        total_lines,
                     )
                 )
             except EOFError:
@@ -645,7 +743,12 @@ def process_category(
                 download_if_needed(review_url, review_gz, force=True)
                 reviews_df, rating_hist, helpful_hist, n_users = (
                     parse_reviews_for_top_users(
-                        review_gz, top_users_set, item_meta, category
+                        review_gz,
+                        top_users_set,
+                        item_meta,
+                        category,
+                        progress_interval,
+                        total_lines,
                     )
                 )
 
@@ -884,6 +987,8 @@ def main() -> None:
         top_users_path = ensure_local("processed", "top_users")
 
     top_users_df = load_top_users(top_users_path)
+    # Build a global set of user_ids once (string-typed) for fast membership checks
+    top_users_set = set(top_users_df["user_id"].astype(str).tolist())
 
     # Determine categories
     if args.categories:
@@ -909,17 +1014,21 @@ def main() -> None:
         print(f"No categories specified; using all from {cat_file}")
         print(f"{len(categories)} categories: {categories}")
 
-    for cat in categories:
+    total_categories = len(categories)
+    for idx, cat in enumerate(categories, start=1):
+        print(f"\n>>> [{idx}/{total_categories}] Starting category: {cat}")
         try:
             process_category(
                 cat,
                 raw_dir=raw_dir,
                 processed_dir=processed_dir,
                 top_users_df=top_users_df,
+                top_users_set=top_users_set,
                 allow_download=allow_download,
                 cleanup_raw=cleanup_raw,
                 cleanup_processed=cleanup_processed,
                 repo_root=repo_root,
+                progress_interval=args.progress_interval,
             )
         except Exception as e:
             print(f"  [error] processing {cat}: {e}")
