@@ -385,23 +385,53 @@ def parse_reviews_for_top_users(
     category: str,
     progress_interval: int,
     total_lines: Optional[int],
-) -> Tuple[pd.DataFrame, Counter, Counter, int]:
+    out_reviews_parquet: Path,
+    parquet_batch_size: int = 500_000,
+) -> Tuple[Counter, Counter, int, int]:
     """
     Stream the review JSONL.gz, filter to top users, attach item meta,
-    and return:
-      reviews_df, rating_hist, helpful_hist, n_users
+    and write per-review data directly to Parquet in batches.
 
-    progress_interval controls how often we log parse progress (in lines).
-    total_lines, if provided, lets us report percent complete and ETA.
+    Returns:
+      rating_hist: Counter of rating -> count
+      helpful_hist: Counter of clipped helpful votes -> count
+      n_users_with_reviews: number of unique users with at least one review
+      n_reviews_kept: total number of kept reviews
+
+    Notes:
+      - We do NOT materialize a full reviews DataFrame in memory anymore.
+      - Per-review data is written incrementally to `out_reviews_parquet`.
     """
-    rows = []
-    per_user_counts = defaultdict(int)
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    # If a previous file exists and we're re-running, overwrite it
+    if out_reviews_parquet.exists():
+        out_reviews_parquet.unlink()
+
     rating_hist = Counter()
     helpful_hist = Counter()
+    seen_users = set()
 
     n_lines = 0
     n_kept = 0
     start_time = time.time()
+
+    rows_batch: List[Dict] = []
+    writer = None
+
+    def flush_batch() -> None:
+        nonlocal writer, rows_batch
+        if not rows_batch:
+            return
+        # Convert list-of-dicts to column-wise dict for pyarrow
+        keys = rows_batch[0].keys()
+        cols = {k: [row[k] for row in rows_batch] for k in keys}
+        table = pa.Table.from_pydict(cols)
+        if writer is None:
+            writer = pq.ParquetWriter(str(out_reviews_parquet), table.schema)
+        writer.write_table(table)
+        rows_batch = []
 
     with gzip.open(review_gz, "rt", encoding="utf-8") as f:
         for line in f:
@@ -467,10 +497,15 @@ def parse_reviews_for_top_users(
                 "item_categories": im.get("item_categories"),
             }
 
-            rows.append(row)
-            per_user_counts[user_id] += 1
+            rows_batch.append(row)
+            seen_users.add(user_id)
             n_kept += 1
 
+            # Flush Parquet batch if needed to keep memory bounded
+            if len(rows_batch) >= parquet_batch_size:
+                flush_batch()
+
+            # Progress / ETA logging
             if progress_interval > 0 and n_lines % progress_interval == 0:
                 elapsed = time.time() - start_time
                 rate = n_lines / elapsed if elapsed > 0 else 0.0
@@ -489,16 +524,17 @@ def parse_reviews_for_top_users(
                         f"    [parse] {category}: "
                         f"{n_lines:,}/{total_lines:,} lines "
                         f"({pct:5.1f}%), kept={n_kept:,}, "
-                        f"users_with_reviews={len(per_user_counts):,}, "
+                        f"users_with_reviews={len(seen_users):,}, "
                         f"rate={rate:,.0f} lines/s, ETA={eta_str}"
                     )
                 else:
                     print(
                         f"    [parse] {category}: "
                         f"lines_seen={n_lines:,}, kept={n_kept:,}, "
-                        f"users_with_reviews={len(per_user_counts):,}"
+                        f"users_with_reviews={len(seen_users):,}"
                     )
 
+            # Histograms
             try:
                 if rating is not None:
                     rating_hist[float(rating)] += 1
@@ -506,21 +542,41 @@ def parse_reviews_for_top_users(
                 pass
             helpful_hist[hv_clipped] += 1
 
+    # Flush any remaining rows
+    flush_batch()
+    if writer is not None:
+        writer.close()
+    else:
+        # No rows kept at all → create an empty parquet with expected columns
+        empty_df = pd.DataFrame(
+            columns=[
+                "user_id",
+                "product_id",
+                "unixReviewTime",
+                "rating",
+                "helpful_votes",
+                "helpful_votes_clipped",
+                "verified_purchase",
+                "item_avg_rating",
+                "item_categories",
+            ]
+        )
+        empty_df.to_parquet(out_reviews_parquet, index=False)
+
     if total_lines:
         print(
-            f"  [done] filtered reviews rows={len(rows):,}, "
-            f"users_with_reviews={len(per_user_counts):,}, "
+            f"  [done] filtered reviews rows={n_kept:,}, "
+            f"users_with_reviews={len(seen_users):,}, "
             f"lines_seen={n_lines:,}/{total_lines:,}"
         )
     else:
         print(
-            f"  [done] filtered reviews rows={len(rows):,}, "
-            f"users_with_reviews={len(per_user_counts):,}, "
+            f"  [done] filtered reviews rows={n_kept:,}, "
+            f"users_with_reviews={len(seen_users):,}, "
             f"lines_seen={n_lines:,}"
         )
 
-    reviews_df = pd.DataFrame(rows)
-    return reviews_df, rating_hist, helpful_hist, len(per_user_counts)
+    return rating_hist, helpful_hist, len(seen_users), n_kept
 
 
 def process_category(
@@ -702,18 +758,15 @@ def process_category(
                     download_if_needed(meta_url, meta_gz, force=True)
                     item_meta = load_item_meta(meta_gz, category)
 
-        # Build top_users set
-        #top_users_set = set(top_users_df["user_id"].astype(str).tolist())
         print(
             f"  [info] top_users provided: {len(top_users_set)} users; filtering reviews..."
         )
 
         # ------------------------------------------------------------------
-        # Step 1: filtered reviews + stats
+        # Step 1: filtered reviews + stats (streaming parser)
         # ------------------------------------------------------------------
         if not need_step1:
             print("  [skip] filtered reviews + stats already exist; loading from disk.")
-            reviews_df = pd.read_parquet(out_reviews_parquet)
             with open(out_stats_json, "r", encoding="utf-8") as f:
                 stats = json.load(f)
             rating_hist = Counter(
@@ -722,10 +775,12 @@ def process_category(
             helpful_hist = Counter(
                 {int(k): v for k, v in stats.get("helpful_hist", {}).items()}
             )
+            n_reviews = int(stats.get("n_reviews", 0))
+            n_users = int(stats.get("n_users", 0))
         else:
-            print("  [run] parsing review gz for top users...")
+            print("  [run] parsing review gz for top users (streaming)...")
             try:
-                reviews_df, rating_hist, helpful_hist, n_users = (
+                rating_hist, helpful_hist, n_users, n_reviews = (
                     parse_reviews_for_top_users(
                         review_gz,
                         top_users_set,
@@ -733,6 +788,7 @@ def process_category(
                         category,
                         progress_interval,
                         total_lines,
+                        out_reviews_parquet,
                     )
                 )
             except EOFError:
@@ -741,7 +797,7 @@ def process_category(
                     "re-downloading and retrying..."
                 )
                 download_if_needed(review_url, review_gz, force=True)
-                reviews_df, rating_hist, helpful_hist, n_users = (
+                rating_hist, helpful_hist, n_users, n_reviews = (
                     parse_reviews_for_top_users(
                         review_gz,
                         top_users_set,
@@ -749,16 +805,13 @@ def process_category(
                         category,
                         progress_interval,
                         total_lines,
+                        out_reviews_parquet,
                     )
                 )
 
-            # Save even if empty to signal that this category is processed
-            reviews_df.to_parquet(out_reviews_parquet, index=False)
-            print(f"  [save] top-user reviews -> {out_reviews_parquet}")
-
             stats_out = {
                 "category": category,
-                "n_reviews": int(len(reviews_df)),
+                "n_reviews": int(n_reviews),
                 "n_users": int(n_users),
                 "rating_hist": dict(rating_hist),
                 "helpful_hist": dict(helpful_hist),
@@ -768,7 +821,7 @@ def process_category(
             print(f"  [save] stats -> {out_stats_json}")
 
         # If there are zero reviews, short-circuit steps 2–4
-        if reviews_df.empty:
+        if n_reviews == 0:
             print("  [warn] No reviews for top users in this category.")
             if not out_user_features.exists():
                 pd.DataFrame(columns=["user_id"]).to_parquet(
@@ -803,6 +856,14 @@ def process_category(
                         p.unlink()
             print(f"=== Done category (no top-user reviews): {category} ===")
             return
+
+        # ------------------------------------------------------------------
+        # Load reviews DataFrame only if needed for groupbys
+        # ------------------------------------------------------------------
+        reviews_df: Optional[pd.DataFrame] = None
+        if (need_step2 or need_step3) and n_reviews > 0:
+            print("  [load] reading top-user reviews parquet for aggregation...")
+            reviews_df = pd.read_parquet(out_reviews_parquet)
 
         # ------------------------------------------------------------------
         # Step 2: per-user aggregated features
