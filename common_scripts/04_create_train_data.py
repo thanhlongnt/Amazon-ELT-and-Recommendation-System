@@ -149,101 +149,101 @@ class DataPipeLine():
     
 
 
-def build_top_n_features(category_one_hot_map, user_purchase_map, df_user_chars, df_item_features, n_latest=10):
-    """
-    Build feature vectors combining user characteristics, item features, and n latest purchases.
+# def build_top_n_features(category_one_hot_map, user_purchase_map, df_user_chars, df_item_features, n_latest=10):
+#     """
+#     Build feature vectors combining user characteristics, item features, and n latest purchases.
     
-    Args:
-        category_one_hot_map: Dict mapping categories to one-hot indices
-        user_purchase_map: Dict mapping user_id to list of purchased product_ids (sorted by time)
-        df_user_chars: DataFrame with user characteristics
-        df_item_features: DataFrame with item features including categories
-        n_latest: Number of latest purchases to include
+#     Args:
+#         category_one_hot_map: Dict mapping categories to one-hot indices
+#         user_purchase_map: Dict mapping user_id to list of purchased product_ids (sorted by time)
+#         df_user_chars: DataFrame with user characteristics
+#         df_item_features: DataFrame with item features including categories
+#         n_latest: Number of latest purchases to include
     
-    Returns:
-        DataFrame with feature vectors for each user
-    """
+#     Returns:
+#         DataFrame with feature vectors for each user
+#     """
     
-    # Create a mapping from product_id to category for quick lookup
-    product_to_category = df_item_features.set_index('product_id')['category'].to_dict()
+#     # Create a mapping from product_id to category for quick lookup
+#     product_to_category = df_item_features.set_index('product_id')['category'].to_dict()
     
-    # Get number of categories for one-hot encoding
-    num_categories = len(category_one_hot_map)
+#     # Get number of categories for one-hot encoding
+#     num_categories = len(category_one_hot_map)
     
-    feature_vectors = []
+#     feature_vectors = []
     
-    for user_id in tqdm(list(user_purchase_map.keys())[:100], desc="Building feature vectors", ncols=80):
-        # Get user characteristics
-        user_char = df_user_chars[df_user_chars['user_id'] == user_id]
-        if user_char.empty:
-            continue
+#     for user_id in tqdm(list(user_purchase_map.keys())[:100], desc="Building feature vectors", ncols=80):
+#         # Get user characteristics
+#         user_char = df_user_chars[df_user_chars['user_id'] == user_id]
+#         if user_char.empty:
+#             continue
             
-        user_char = user_char.iloc[0]
+#         user_char = user_char.iloc[0]
         
-        features = {
-            'user_id': user_id,
-            'avg_item_avg_rating': user_char.get('avg_item_avg_rating', 0),
-            'total_purchases': user_char.get('total_purchases', 0),
-            'distinct_categories': user_char.get('distinct_categories', 0),
-            'entropy': user_char.get('entropy', 0),
-            'norm_entropy': user_char.get('norm_entropy', 0),
-            'importance': user_char.get('importance', 0)
-        }
+#         features = {
+#             'user_id': user_id,
+#             'avg_item_avg_rating': user_char.get('avg_item_avg_rating', 0),
+#             'total_purchases': user_char.get('total_purchases', 0),
+#             'distinct_categories': user_char.get('distinct_categories', 0),
+#             'entropy': user_char.get('entropy', 0),
+#             'norm_entropy': user_char.get('norm_entropy', 0),
+#             'importance': user_char.get('importance', 0)
+#         }
         
-        if 'first_review_time' in user_char:
-            features['first_review_time'] = user_char['first_review_time']
-        if 'last_review_time' in user_char:
-            features['last_review_time'] = user_char['last_review_time']
+#         if 'first_review_time' in user_char:
+#             features['first_review_time'] = user_char['first_review_time']
+#         if 'last_review_time' in user_char:
+#             features['last_review_time'] = user_char['last_review_time']
             
-        purchase_history = user_purchase_map[user_id]
+#         purchase_history = user_purchase_map[user_id]
         
-        latest_purchases = purchase_history[-n_latest:] if len(purchase_history) >= n_latest else purchase_history
+#         latest_purchases = purchase_history[-n_latest:] if len(purchase_history) >= n_latest else purchase_history
         
-        category_counts = np.zeros(num_categories + 1)  # +1 for unknown categories
+#         category_counts = np.zeros(num_categories + 1)  # +1 for unknown categories
         
-        for i in range(n_latest):
-            if i < len(latest_purchases):
-                product_id = latest_purchases[-(i+1)]
-                category = product_to_category.get(product_id, 'Unknown')
+#         for i in range(n_latest):
+#             if i < len(latest_purchases):
+#                 product_id = latest_purchases[-(i+1)]
+#                 category = product_to_category.get(product_id, 'Unknown')
                 
-                cat_idx = category_one_hot_map.get(category, 0)  # 0 for unknown
+#                 cat_idx = category_one_hot_map.get(category, 0)  # 0 for unknown
                 
-                features[f'latest_purchase_{i+1}_category'] = cat_idx
+#                 features[f'latest_purchase_{i+1}_category'] = cat_idx
                 
-                category_counts[cat_idx] += 1
-            else:
-                features[f'latest_purchase_{i+1}_category'] = 0
+#                 category_counts[cat_idx] += 1
+#             else:
+#                 features[f'latest_purchase_{i+1}_category'] = 0
         
-        # Add category frequency features
-        for category, idx in category_one_hot_map.items():
-            features[f'category_count_{category}'] = category_counts[idx]
-        features['category_count_unknown'] = category_counts[0]
+#         # Add category frequency features
+#         for category, idx in category_one_hot_map.items():
+#             features[f'category_count_{category}'] = category_counts[idx]
+#         features['category_count_unknown'] = category_counts[0]
         
-        # Add aggregate features
-        features['total_category_diversity'] = np.sum(category_counts > 0)
-        features['most_frequent_category'] = np.argmax(category_counts)
-        features['purchase_history_length'] = len(purchase_history)
+#         # Add aggregate features
+#         features['total_category_diversity'] = np.sum(category_counts > 0)
+#         features['most_frequent_category'] = np.argmax(category_counts)
+#         features['purchase_history_length'] = len(purchase_history)
         
-        # Add recency features (how recent each category was purchased)
-        category_recency = {}
-        for i, product_id in enumerate(reversed(purchase_history)):
-            category = product_to_category.get(product_id, 'Unknown')
-            if category not in category_recency:
-                category_recency[category] = i + 1  # 1 = most recent
+#         # Add recency features (how recent each category was purchased)
+#         category_recency = {}
+#         for i, product_id in enumerate(reversed(purchase_history)):
+#             category = product_to_category.get(product_id, 'Unknown')
+#             if category not in category_recency:
+#                 category_recency[category] = i + 1  # 1 = most recent
         
-        for category, idx in category_one_hot_map.items():
-            features[f'recency_{category}'] = category_recency.get(category, len(purchase_history) + 1)
-        features['recency_unknown'] = category_recency.get('Unknown', len(purchase_history) + 1)
+#         for category, idx in category_one_hot_map.items():
+#             features[f'recency_{category}'] = category_recency.get(category, len(purchase_history) + 1)
+#         features['recency_unknown'] = category_recency.get('Unknown', len(purchase_history) + 1)
         
-        feature_vectors.append(features)
+#         feature_vectors.append(features)
     
-    feature_df = pd.DataFrame(feature_vectors)
+#     feature_df = pd.DataFrame(feature_vectors)
     
-    print(f"Built feature vectors for {len(feature_df)} users")
-    print(f"Feature vector dimension: {len(feature_df.columns)}")
-    print(f"Feature columns: {list(feature_df.columns)}")
+#     print(f"Built feature vectors for {len(feature_df)} users")
+#     print(f"Feature vector dimension: {len(feature_df.columns)}")
+#     print(f"Feature columns: {list(feature_df.columns)}")
     
-    return feature_df
+#     return feature_df
 
 def create_training_samples(feature_df, user_purchase_map, df_item_features, category_one_hot_map):
     """
@@ -285,6 +285,81 @@ def create_training_samples(feature_df, user_purchase_map, df_item_features, cat
     print(y.value_counts())
     
     return X, y, training_df
+
+def build_top_n_features(category_one_hot_map, user_purchase_map, df_user_chars, df_item_features, n_latest=10):
+    """Optimized version using vectorized operations."""
+    
+    product_to_category = df_item_features.set_index('product_id')['category'].to_dict()
+    category_to_idx = {cat: idx for idx, cat in enumerate(category_one_hot_map.keys(), 1)}
+    category_to_idx['Unknown'] = 0
+    
+    valid_user_ids = set(df_user_chars['user_id'].astype(str))
+    filtered_purchase_map = {uid: hist for uid, hist in user_purchase_map.items() 
+                           if str(uid) in valid_user_ids}
+    
+    df_user_chars_indexed = df_user_chars.set_index('user_id')
+    
+    feature_list = []
+    user_ids = list(filtered_purchase_map.keys())
+    
+    batch_size = 1
+    for i in tqdm(range(0, len(user_ids), batch_size), desc="Processing user batches", ncols=80):
+        batch_users = user_ids[i:i+batch_size]
+        batch_features = process_user_batch(
+            batch_users, filtered_purchase_map, df_user_chars_indexed,
+            product_to_category, category_to_idx, n_latest
+        )
+        feature_list.extend(batch_features)
+    
+    return pd.DataFrame(feature_list)
+
+def process_user_batch(user_ids, purchase_map, user_chars_df, product_to_category, category_to_idx, n_latest):
+    """Process a batch of users efficiently."""
+    batch_features = []
+    
+    for user_id in user_ids:
+        try:
+            user_char = user_chars_df.loc[user_id]
+        except KeyError:
+            continue
+            
+        purchase_history = purchase_map[user_id]
+        
+        features = {
+            'user_id': user_id,
+            'avg_item_avg_rating': user_char.get('avg_item_avg_rating', 0),
+            'total_purchases': user_char.get('total_purchases', 0),
+            'distinct_categories': user_char.get('distinct_categories', 0),
+            'entropy': user_char.get('entropy', 0),
+            'norm_entropy': user_char.get('norm_entropy', 0),
+            'importance': user_char.get('importance', 0),
+            'purchase_history_length': len(purchase_history)
+        }
+        
+        latest_purchases = purchase_history[-n_latest:] if len(purchase_history) >= n_latest else purchase_history
+        
+        categories = [product_to_category.get(pid, 'Unknown') for pid in latest_purchases]
+        category_indices = [category_to_idx.get(cat, 0) for cat in categories]
+        
+        category_indices.extend([0] * (n_latest - len(category_indices)))
+        
+        for i in range(n_latest):
+            features[f'latest_purchase_{i+1}_category'] = category_indices[i]
+        
+        category_counts = np.bincount(category_indices, minlength=len(category_to_idx))
+        
+        for cat, idx in category_to_idx.items():
+            if cat == 'Unknown':
+                features['category_count_unknown'] = category_counts[0]
+            else:
+                features[f'category_count_{cat}'] = category_counts[idx]
+        
+        features['total_category_diversity'] = np.sum(category_counts > 0)
+        features['most_frequent_category'] = np.argmax(category_counts)
+        
+        batch_features.append(features)
+    
+    return batch_features
 
 def main():
     ## Load in all the data
