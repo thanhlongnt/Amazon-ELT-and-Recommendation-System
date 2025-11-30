@@ -5,6 +5,9 @@ asin2category.json
 __pycache__/
 .ipynb_checkpoints/
 *.parquet
+*.png
+*.json
+*.lock
 client_secrets.json
 client_secret.json
 pydrive_credentials.json
