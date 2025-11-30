@@ -9,3 +9,5 @@ client_secrets.json
 client_secret.json
 pydrive_credentials.json
 data_registry.yaml
+output.txt
+*/explore_data.py

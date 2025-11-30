@@ -212,6 +212,7 @@ def build_top_n_features(category_one_hot_map, user_purchase_map, df_user_chars,
     feature_list = []
     user_ids = list(filtered_purchase_map.keys())
     
+    # changable batch size depending on your pc spec
     batch_size = 1
     for i in tqdm(range(0, len(user_ids), batch_size), desc="Processing user batches", ncols=80):
         batch_users = user_ids[i:i+batch_size]
@@ -243,6 +244,7 @@ def process_user_batch(user_ids, purchase_map, user_chars_df, product_to_categor
             # 'entropy': user_char.get('entropy', 0),
             'norm_entropy': user_char.get('norm_entropy', 0),
             'importance': user_char.get('importance', 0),
+            'account_age': max(user_char.get('last_review_time', 0) - user_char.get('first_review_time', 0), 0)
         }
         
         latest_purchases = purchase_history[-n_latest:] if len(purchase_history) >= n_latest else purchase_history
@@ -271,14 +273,16 @@ def process_user_batch(user_ids, purchase_map, user_chars_df, product_to_categor
 
 def main():
     ## Load in all the data
+    # data_io.resync_registry()
+
     data_loader = DataLoader()
 
-    categories = data_loader.load_categories_from_file('data/raw/all_categories.txt')
-    categories = data_loader.ensure_categories_downloaded(categories)
+    # categories = data_loader.load_categories_from_file('data/raw/all_categories.txt')
+    # categories = data_loader.ensure_categories_downloaded(categories)
 
-    print(categories)
+    # print(categories)
 
-    # categories = ['All_Beauty', 'Amazon_Fashion']
+    categories = ['All_Beauty', 'Amazon_Fashion']
     
     category_one_hot_map = data_loader.build_one_hot(categories)
     

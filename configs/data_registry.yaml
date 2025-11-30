@@ -428,9 +428,6 @@ processed:
   top_item_features_Beauty_and_Personal_Care:
     drive_file_id: 17-UnmntSEBv1bjQNXpim2pEyGhpr0ttu
     local_path: data/processed/Beauty_and_Personal_Care/top_item_features_Beauty_and_Personal_Care.parquet
-  top_item_features_Books:
-    drive_file_id: 1xmcAt3jCnYG59kVwAZ7OrxydOE0fZclA
-    local_path: data/processed/Books/top_item_features_Books.parquet
   top_item_features_CDs_and_Vinyl:
     drive_file_id: 1QhMNgBKsViHrwxDlfih6tcWxR2GRUzQa
     local_path: data/processed/CDs_and_Vinyl/top_item_features_CDs_and_Vinyl.parquet
@@ -443,9 +440,6 @@ processed:
   top_item_features_Digital_Music:
     drive_file_id: 1002fi-CsMdyjck-8BcOO3W5_f6h3qaEM
     local_path: data/processed/Digital_Music/top_item_features_Digital_Music.parquet
-  top_item_features_Electronics:
-    drive_file_id: 1sNJsOrLxjcwLQKA4Nzg0VXRl_Sb-pu6Z
-    local_path: data/processed/Electronics/top_item_features_Electronics.parquet
   top_item_features_Gift_Cards:
     drive_file_id: 1bjRHZ4ydvxWEUNaZsaRPxPCMvXEWJH3R
     local_path: data/processed/Gift_Cards/top_item_features_Gift_Cards.parquet
@@ -467,15 +461,9 @@ processed:
   top_item_features_Industrial_and_Scientific:
     drive_file_id: 1PhNljRaPYC7OxapcrLpCeVTk7l-f5vpf
     local_path: data/processed/Industrial_and_Scientific/top_item_features_Industrial_and_Scientific.parquet
-  top_item_features_Kindle_Store:
-    drive_file_id: 14dFsTimcJcc_5bLbOg44JTKYduZGFOKu
-    local_path: data/processed/Kindle_Store/top_item_features_Kindle_Store.parquet
   top_item_features_Magazine_Subscriptions:
     drive_file_id: 1IdLYyW-IW36_B1WACchyIV8s-wuXQU5r
     local_path: data/processed/Magazine_Subscriptions/top_item_features_Magazine_Subscriptions.parquet
-  top_item_features_Movies_and_TV:
-    drive_file_id: 1gN9mljgbrb8Iqwjwcvo8XUKGNfFHZdsf
-    local_path: data/processed/Movies_and_TV/top_item_features_Movies_and_TV.parquet
   top_item_features_Musical_Instruments:
     drive_file_id: 1e_cdJ_huTGj2TiCvhLnz2_wAWpQaf3dW
     local_path: data/processed/Musical_Instruments/top_item_features_Musical_Instruments.parquet
@@ -507,7 +495,6 @@ processed:
     drive_file_id: 14jqKE4PZIh-Lam5YIUpxcHBrAD5DQysS
     local_path: data/processed/Video_Games/top_item_features_Video_Games.parquet
   top_user_features_All_Beauty:
-    drive_file_id: 13B6UsuZI3XzhHefQLvkAkss74BGF-83J
     local_path: data/processed/All_Beauty/top_user_features_All_Beauty.parquet
   top_user_features_Amazon_Fashion:
     drive_file_id: 1hfPoRs6D15KRKOqOt-aYwHWeBTXQ7kCJ
@@ -524,9 +511,6 @@ processed:
   top_user_features_Beauty_and_Personal_Care:
     drive_file_id: 134EPnyt923fubNI-On91MD3L3xSbAwoe
     local_path: data/processed/Beauty_and_Personal_Care/top_user_features_Beauty_and_Personal_Care.parquet
-  top_user_features_Books:
-    drive_file_id: 1hAGKy8P0ru2dC8NXnahiqk3ywPy5k0gZ
-    local_path: data/processed/Books/top_user_features_Books.parquet
   top_user_features_CDs_and_Vinyl:
     drive_file_id: 1MLNG61ifiefAEktcsVgwACSrbDyhkOcf
     local_path: data/processed/CDs_and_Vinyl/top_user_features_CDs_and_Vinyl.parquet
@@ -539,9 +523,6 @@ processed:
   top_user_features_Digital_Music:
     drive_file_id: 1uFHcR1UtBDISDmB8098b_jvHxrRp7zQ5
     local_path: data/processed/Digital_Music/top_user_features_Digital_Music.parquet
-  top_user_features_Electronics:
-    drive_file_id: 1r8strg1PSFBeU7q0cXxgl67usEc7wqfb
-    local_path: data/processed/Electronics/top_user_features_Electronics.parquet
   top_user_features_Gift_Cards:
     drive_file_id: 19U8OZ1gGPDUqWhz-UdEPIS03YbZRgz-O
     local_path: data/processed/Gift_Cards/top_user_features_Gift_Cards.parquet
@@ -554,24 +535,15 @@ processed:
   top_user_features_Health_and_Household:
     drive_file_id: 1vhh6ib2lVxoUqhAa0vFDyLwLakcMU2o4
     local_path: data/processed/Health_and_Household/top_user_features_Health_and_Household.parquet
-  top_user_features_Health_and_Personal_Care:
-    drive_file_id: 1jflCP602aM3Eo4qkeIpytKCV3ZiWlHLn
-    local_path: data/processed/Health_and_Personal_Care/top_user_features_Health_and_Personal_Care.parquet
   top_user_features_Home_and_Kitchen:
     drive_file_id: 1EtEOo8N82bq5u6vU7S3Pq2VFoXcJVGEX
     local_path: data/processed/Home_and_Kitchen/top_user_features_Home_and_Kitchen.parquet
   top_user_features_Industrial_and_Scientific:
     drive_file_id: 1mzpaigOpcSQlsvreyFKgRo5TckI6Oobz
     local_path: data/processed/Industrial_and_Scientific/top_user_features_Industrial_and_Scientific.parquet
-  top_user_features_Kindle_Store:
-    drive_file_id: 1KQJyJLiCMJnAuYU8BRG42_vDRVi8VKyv
-    local_path: data/processed/Kindle_Store/top_user_features_Kindle_Store.parquet
   top_user_features_Magazine_Subscriptions:
     drive_file_id: 18CxJt3gDbMLBcjtqOo1BpopKpgBRzenp
     local_path: data/processed/Magazine_Subscriptions/top_user_features_Magazine_Subscriptions.parquet
-  top_user_features_Movies_and_TV:
-    drive_file_id: 16r0PSvbaFzxfLKzv_Cqf24KfClYcFAhi
-    local_path: data/processed/Movies_and_TV/top_user_features_Movies_and_TV.parquet
   top_user_features_Musical_Instruments:
     drive_file_id: 1Nl54lXXDRdPKcjpqd1jvwHmTVOSCU87Q
     local_path: data/processed/Musical_Instruments/top_user_features_Musical_Instruments.parquet
@@ -596,9 +568,6 @@ processed:
   top_user_features_Toys_and_Games:
     drive_file_id: 1Jlxqr2rkhu4WJV_7xjnd1YfzlZFernJL
     local_path: data/processed/Toys_and_Games/top_user_features_Toys_and_Games.parquet
-  top_user_features_Unknown:
-    drive_file_id: 1FANL4uEYf71PLa-fQYCr8FLiT1LPh87I
-    local_path: data/processed/Unknown/top_user_features_Unknown.parquet
   top_user_features_Video_Games:
     drive_file_id: 12LZVT_1S350pBWY3nswvKoZu0ux65nBl
     local_path: data/processed/Video_Games/top_user_features_Video_Games.parquet
@@ -702,7 +671,6 @@ processed:
     drive_file_id: 1C8IcRRRUQsGVOHxoZ21EvF4LcRism_te
     local_path: data/processed/Video_Games/top_user_review_stats_Video_Games.json
   top_user_reviews_All_Beauty:
-    drive_file_id: 1X23hNvyqjL5_-wnuCV0hLqy-758YPje3
     local_path: data/processed/All_Beauty/top_user_reviews_All_Beauty.parquet
   top_user_reviews_Amazon_Fashion:
     drive_file_id: 1wK9nSEaDOWePkekVsiC06scSBnV5In4X
@@ -719,9 +687,6 @@ processed:
   top_user_reviews_Beauty_and_Personal_Care:
     drive_file_id: 1TksyH0xjHY6zTa-hBVO3L5avvXzKfVia
     local_path: data/processed/Beauty_and_Personal_Care/top_user_reviews_Beauty_and_Personal_Care.parquet
-  top_user_reviews_Books:
-    drive_file_id: 1vn3dCS2yxCpLXHELbJ5g73QChGXXRxF9
-    local_path: data/processed/Books/top_user_reviews_Books.parquet
   top_user_reviews_CDs_and_Vinyl:
     drive_file_id: 1bk7Id_CtGFkegJl9rqARpYi1UTTDAiqd
     local_path: data/processed/CDs_and_Vinyl/top_user_reviews_CDs_and_Vinyl.parquet
@@ -734,9 +699,6 @@ processed:
   top_user_reviews_Digital_Music:
     drive_file_id: 1L6EKycyLDevxdFWR34mXClUykjo_huHC
     local_path: data/processed/Digital_Music/top_user_reviews_Digital_Music.parquet
-  top_user_reviews_Electronics:
-    drive_file_id: 1BDCcX0hToaYXxk4QNUDAPDSJCvgzmmW6
-    local_path: data/processed/Electronics/top_user_reviews_Electronics.parquet
   top_user_reviews_Gift_Cards:
     drive_file_id: 1W341EvpPacF1K8y2cBoNEa4a_ycBt-fG
     local_path: data/processed/Gift_Cards/top_user_reviews_Gift_Cards.parquet
@@ -749,24 +711,15 @@ processed:
   top_user_reviews_Health_and_Household:
     drive_file_id: 1zFMLxBlv_6z9wngcxoKzdCTmmwiPXv-Y
     local_path: data/processed/Health_and_Household/top_user_reviews_Health_and_Household.parquet
-  top_user_reviews_Health_and_Personal_Care:
-    drive_file_id: 16CnXOFt1_7GrARoX2p6FfAcm42pKJKPX
-    local_path: data/processed/Health_and_Personal_Care/top_user_reviews_Health_and_Personal_Care.parquet
   top_user_reviews_Home_and_Kitchen:
     drive_file_id: 1JNSXWiLFtKRUfLqxGKfjx816EHnPBXQV
     local_path: data/processed/Home_and_Kitchen/top_user_reviews_Home_and_Kitchen.parquet
   top_user_reviews_Industrial_and_Scientific:
     drive_file_id: 1M8182bI-ufhx6EdxafrJD_cZjRstOAYe
     local_path: data/processed/Industrial_and_Scientific/top_user_reviews_Industrial_and_Scientific.parquet
-  top_user_reviews_Kindle_Store:
-    drive_file_id: 1GQU41bkdKzDKdz1bORPzpd2x7WshIiRw
-    local_path: data/processed/Kindle_Store/top_user_reviews_Kindle_Store.parquet
   top_user_reviews_Magazine_Subscriptions:
     drive_file_id: 1oQRIaMZDgrWhu6vnCJmhmnxw-SeL1aMa
     local_path: data/processed/Magazine_Subscriptions/top_user_reviews_Magazine_Subscriptions.parquet
-  top_user_reviews_Movies_and_TV:
-    drive_file_id: 1squCRFrZ6QxI0IUWV_pCwxFMbvsDEj4E
-    local_path: data/processed/Movies_and_TV/top_user_reviews_Movies_and_TV.parquet
   top_user_reviews_Musical_Instruments:
     drive_file_id: 1ZC-7_Q38NQ3IhIugYk8UdJkTJ0BVXmRJ
     local_path: data/processed/Musical_Instruments/top_user_reviews_Musical_Instruments.parquet
@@ -1102,6 +1055,8 @@ raw:
   .DS_Store:
     drive_file_id: 1jPtqhhBKtHELaG27lY8b1dGTwIEhRyUK
     local_path: data/raw/.DS_Store
+  all_categories copy.txt:
+    local_path: data/raw/all_categories copy.txt
   all_categories.txt:
     drive_file_id: 1j7V7kg_zT29jcZVC70lewHRN2qyzfx-p
     local_path: data/raw/all_categories.txt
