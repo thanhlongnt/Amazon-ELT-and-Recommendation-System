@@ -943,12 +943,13 @@ processed:
     drive_file_id: 1D_x4Nam_ZZGkRHicmCKkd11AaPFCz-9G
     local_path: data/processed/Video_Games/top_users_rating_hist_Video_Games.png
   training_samples:
-    local_path: data/processed/training_samples.parquet
+    drive_file_id: 1VZfAyU1eNFuDyoqQ6VgHRo6zXVRdwAw1
+    local_path: data/global/training_samples.parquet
   user_distinct_categories_hist:
     drive_file_id: 1vXf0kMgMFkPo7z50kisSLVDapPIYW5IG
     local_path: data/global/user_distinct_categories_hist.png
   user_feature_vectors:
-    local_path: data/processed/user_feature_vectors.parquet
+    local_path: data/global/user_feature_vectors.parquet
   user_purchases_hist_All_Beauty:
     drive_file_id: 1twaCMuN7HazQsLfheezmzwicFYJEOtSp
     local_path: data/processed/All_Beauty/user_purchases_hist_All_Beauty.png

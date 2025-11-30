@@ -14,6 +14,8 @@ from collections import defaultdict
 
 import data_io
 from tqdm import tqdm
+import os
+
 class DataLoader:
     def ensure_categories_downloaded(self, categories:List[str]):
         succuessful_categories = []
@@ -241,7 +243,6 @@ def process_user_batch(user_ids, purchase_map, user_chars_df, product_to_categor
             'avg_item_avg_rating': user_char.get('avg_item_avg_rating', 0),
             'total_purchases': user_char.get('total_purchases', 0),
             'distinct_categories': user_char.get('distinct_categories', 0),
-            # 'entropy': user_char.get('entropy', 0),
             'norm_entropy': user_char.get('norm_entropy', 0),
             'importance': user_char.get('importance', 0),
             'account_age': max(user_char.get('last_review_time', 0) - user_char.get('first_review_time', 0), 0)
@@ -273,7 +274,7 @@ def process_user_batch(user_ids, purchase_map, user_chars_df, product_to_categor
 
 def main():
     ## Load in all the data
-    # data_io.resync_registry()
+    data_io.resync_registry()
 
     data_loader = DataLoader()
 
@@ -282,7 +283,7 @@ def main():
 
     # print(categories)
 
-    categories = ['All_Beauty', 'Amazon_Fashion']
+    categories = ['All_Beauty'] # 'Amazon_Fashion'
     
     category_one_hot_map = data_loader.build_one_hot(categories)
     
@@ -311,9 +312,17 @@ def main():
     print("Feature:", X.head(1).T)
     print("Label:", y.head(1).T)
     
-    # Save the processed data
-    feature_df.to_parquet('data/processed/user_feature_vectors.parquet', index=False)
-    training_df.to_parquet('data/processed/training_samples.parquet', index=False)
+    feature_df.to_parquet('data/global/user_feature_vectors.parquet', index=False)
+    training_df.to_parquet('data/global/training_samples.parquet', index=False)
+
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(current_dir)
+
+    feature_vectors_path = os.path.join(project_root, 'data/global/user_feature_vectors.parquet')
+    training_samples_path = os.path.join(project_root, 'data/global/training_samples.parquet')
+
+    data_io.upload_to_drive(feature_vectors_path)
+    data_io.upload_to_drive(training_samples_path)
     
     print("Feature vectors and training samples saved!")
 
