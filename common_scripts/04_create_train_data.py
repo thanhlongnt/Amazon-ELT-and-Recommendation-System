@@ -312,6 +312,7 @@ def main():
     print("Feature:", X.head(1).T)
     print("Label:", y.head(1).T)
     
+    # Save data
     feature_df.to_parquet('data/global/user_feature_vectors.parquet', index=False)
     training_df.to_parquet('data/global/training_samples.parquet', index=False)
 
