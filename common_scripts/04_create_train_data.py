@@ -16,15 +16,19 @@ import data_io
 from tqdm import tqdm
 class DataLoader:
     def ensure_categories_downloaded(self, categories:List[str]):
+        succuessful_categories = []
         for cat in categories:
             try:
                 data_io.ensure_local_path(f"data/processed/{cat}/top_item_features_{cat}.parquet")
                 data_io.ensure_local_path(f"data/processed/{cat}/top_user_features_{cat}.parquet")
                 data_io.ensure_local_path(f"data/processed/{cat}/top_user_reviews_{cat}.parquet")
+                succuessful_categories.append(cat)
             except:
                 print(f"top user {cat} not processed yet")
                 with open('data/processed/missing_categories.txt', 'a') as f:
                     f.write(f"{cat}\n")
+
+        return succuessful_categories
 
 
     def load_categories_from_file(self, file_path: str) -> List[str]:
@@ -146,47 +150,50 @@ class DataPipeLine():
         result_df = combined_df[df_filtered_columns]
         
         return result_df
-    
 
 def create_training_samples(feature_df, user_purchase_map, df_item_features, category_one_hot_map):
-    """
-    Create training samples with features and target labels.
-    For each user, create samples where we predict the next category given purchase history up to that point.
-    """
-    
+
     product_to_category = df_item_features.set_index('product_id')['category'].to_dict()
-    training_samples = []
-    
-    for _, user_row in feature_df.iterrows():
-        user_id = user_row['user_id']
-        purchase_history = user_purchase_map[user_id]
-        
-        # Create multiple training samples per user (predicting each subsequent purchase)
-        for i in range(1, len(purchase_history)):  # Start from 1 to have at least 1 purchase in history
-            # Use purchase history up to index i-1 to predict purchase at index i
+
+    all_columns = list(feature_df.columns)
+    user_id_idx = all_columns.index("user_id")
+
+    rows = []
+
+    for row in tqdm(feature_df.itertuples(index=False), total=len(feature_df), desc="Creating training samples"):
+        user_id = row[user_id_idx]
+        purchase_history = user_purchase_map.get(user_id, [])
+
+        n = len(purchase_history)
+        if n <= 1: 
+            continue
+
+        static_features = list(row)
+
+        for i in range(1, n):
             target_product = purchase_history[i]
-            target_category = product_to_category.get(target_product, 'Unknown')
+            target_category = product_to_category.get(target_product, "Unknown")
             target_label = category_one_hot_map.get(target_category, 0)
-            
-            # Create feature vector based on history up to this point
-            sample_features = user_row.copy()
-            sample_features['target_category'] = target_label
-            sample_features['sample_index'] = i
-            
-            training_samples.append(sample_features)
-    
-    training_df = pd.DataFrame(training_samples)
-    
-    # Separate features and targets
-    feature_columns = [col for col in training_df.columns if col not in ['user_id', 'target_category', 'sample_index']]
+
+            rows.append(static_features + [target_label, i])
+
+    training_df = pd.DataFrame(
+        rows,
+        columns=all_columns + ["target_category", "sample_index"]
+    )
+
+    # Build feature/target splits
+    feature_columns = [c for c in training_df.columns 
+                       if c not in ("user_id", "target_category", "sample_index")]
+
     X = training_df[feature_columns]
-    y = training_df['target_category']
-    
+    y = training_df["target_category"]
+
     print(f"Created {len(training_df)} training samples")
     print(f"Feature matrix shape: {X.shape}")
-    print(f"Target distribution:")
+    print("Target distribution:")
     print(y.value_counts())
-    
+
     return X, y, training_df
 
 def build_top_n_features(category_one_hot_map, user_purchase_map, df_user_chars, df_item_features, n_latest=10):
@@ -266,10 +273,12 @@ def main():
     ## Load in all the data
     data_loader = DataLoader()
 
-    # categories = data_loader.load_categories_from_file('data/raw/all_categories.txt')
-    # data_loader.ensure_categories_downloaded(categories)
+    categories = data_loader.load_categories_from_file('data/raw/all_categories.txt')
+    categories = data_loader.ensure_categories_downloaded(categories)
 
-    categories = ['All_Beauty', 'Amazon_Fashion']
+    print(categories)
+
+    # categories = ['All_Beauty', 'Amazon_Fashion']
     
     category_one_hot_map = data_loader.build_one_hot(categories)
     
@@ -290,7 +299,6 @@ def main():
     )
     
     # Create training samples
-    print("\nCreating training samples...")
     X, y, training_df = create_training_samples(
         feature_df, user_purchase_map, df_item_features, category_one_hot_map
     )
