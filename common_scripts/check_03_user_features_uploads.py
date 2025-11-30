@@ -187,3 +187,7 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+# usage examples:
+# python common_scripts/check_03_user_features_uploads.py
+# python common_scripts/check_03_user_features_uploads.py --categories Movies_and_TV Books
