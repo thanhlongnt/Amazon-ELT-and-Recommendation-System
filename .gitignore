@@ -8,6 +8,7 @@ __pycache__/
 *.png
 *.json
 *.lock
+*.part
 client_secrets.json
 client_secret.json
 pydrive_credentials.json
