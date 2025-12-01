@@ -737,7 +737,8 @@ def main() -> None:
     import pyarrow as pa
     import pyarrow.parquet as pq
 
-    os.makedirs(os.path.dirname(args.output_path), exist_ok=True)
+    # Make sure per-shard output directory exists
+    os.makedirs(args.per_shard_output_dir, exist_ok=True)
     #writer = None
     baseline_stats = BaselineStats()
 
