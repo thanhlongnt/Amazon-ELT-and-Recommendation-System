@@ -298,6 +298,7 @@ def build_sequence_dataset_for_shard(
         return pd.DataFrame()
 
     reviews_df = reviews_df.copy()
+
     reviews_df["user_id"] = reviews_df["user_id"].astype(str)
 
     # Ensure required columns exist
@@ -337,7 +338,10 @@ def build_sequence_dataset_for_shard(
         static_feature_cols = []
 
     # Group by user within this shard
-    reviews_df = reviews_df.sort_values(["user_id", "unixReviewTime"])
+    #reviews_df = reviews_df.sort_values(["user_id", "unixReviewTime"])
+    # Group by user within this shard
+    # NOTE: global sort is unnecessary (we sort per user below)
+    # and was causing a Categorical bug on some shards.
     grouped = reviews_df.groupby("user_id", sort=False)
 
     num_cats = max(category_index.values()) if category_index else 0
@@ -643,6 +647,17 @@ def build_arg_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="If set, skip computing streaming baselines on the full dataset."
     )
+    parser.add_argument(
+        "--per-shard-output-dir",
+        type=str,
+        default="data/global/sequence_samples_by_shard",
+        help="Directory to write per-shard parquet outputs for Phase 2.",
+    )
+    parser.add_argument(
+        "--resume-phase2",
+        action="store_true",
+        help="If set, Phase 2 will skip shards whose per-shard parquet already exists.",
+    )
     return parser
 
 
@@ -723,7 +738,7 @@ def main() -> None:
     import pyarrow.parquet as pq
 
     os.makedirs(os.path.dirname(args.output_path), exist_ok=True)
-    writer = None
+    #writer = None
     baseline_stats = BaselineStats()
 
     print("\n=== Phase 2: Building sequence samples per shard ===")
@@ -732,6 +747,27 @@ def main() -> None:
         shard_idx += 1
         shard_name = os.path.basename(shard_dir)  # e.g., "user_shard=123"
         print(f"\n[phase2] === Shard {shard_idx}/{num_shards}: {shard_name} ===")
+
+        # Where we store this shard's sequence samples
+        shard_output_path = os.path.join(
+            args.per_shard_output_dir,
+            f"sequence_{shard_name}.parquet",
+        )
+
+        # If resuming and this shard already has output, skip the heavy work
+        if args.resume_phase2 and os.path.exists(shard_output_path):
+            print(f"[phase2] shard {shard_name}: found existing {shard_output_path}, skipping sequence build.")
+
+            # Optionally rebuild baselines from existing shard output
+            if not args.disable_baselines:
+                print(f"[phase2] shard {shard_name}: reloading shard for baselines...")
+                existing_df = pd.read_parquet(shard_output_path)
+                baseline_stats.update_from_shard(existing_df)
+                print(f"[phase2] shard {shard_name}: reused {len(existing_df):,} samples for baselines.")
+                del existing_df
+                gc.collect()
+
+            continue
 
         # Load review shard
         rfiles = [
@@ -800,28 +836,63 @@ def main() -> None:
             print(f"[phase2] cumulative samples so far (for baselines): {baseline_stats.total_samples:,}")
         else:
             print(f"[phase2] cumulative samples so far (no baselines): "
-                  f"{len(seq_df_shard):,} this shard")
+                  f"{shard_samples:,} this shard")
 
-        # Append to output parquet
+        # Write per-shard output
         table = pa.Table.from_pandas(seq_df_shard)
-        if writer is None:
-            writer = pq.ParquetWriter(args.output_path, table.schema)
-        writer.write_table(table)
+        pq.write_table(table, shard_output_path)
+        print(f"[phase2] shard {shard_name}: wrote per-shard output -> {shard_output_path}")
 
         del seq_df_shard, table
         gc.collect()
 
-    if writer is not None:
-        writer.close()
-        print(f"\n[save] sequence training samples -> {args.output_path}")
-        try:
-            abs_path = os.path.abspath(args.output_path)
-            data_io.upload_to_drive(abs_path)
-            print(f"[drive] uploaded sequence dataset to Drive: {abs_path}")
-        except Exception as e:
-            print(f"[drive] WARNING: failed to upload sequence dataset: {e}")
+    # -----------------------------------------------------------------
+    # Combine per-shard outputs into a single global Parquet file
+    # -----------------------------------------------------------------
+    import pyarrow.parquet as pq
+    import pyarrow as pa
+
+    shard_files = [
+        os.path.join(args.per_shard_output_dir, f)
+        for f in os.listdir(args.per_shard_output_dir)
+        if f.endswith(".parquet")
+    ]
+    shard_files.sort()
+
+    if not shard_files:
+        print("[save] No per-shard outputs found; global output will not be written.")
     else:
-        print("[warn] No sequence samples were created at all.")
+        print(f"\n[save] combining {len(shard_files)} shard files into {args.output_path} ...")
+        os.makedirs(os.path.dirname(args.output_path), exist_ok=True)
+
+        # If a previous global file exists (e.g., from a failed run), remove it
+        if os.path.exists(args.output_path):
+            print(f"[save] removing existing global output at {args.output_path} to avoid duplicates.")
+            os.remove(args.output_path)
+
+        writer = None
+        total_rows = 0
+
+        for fpath in shard_files:
+            df = pd.read_parquet(fpath)
+            total_rows += len(df)
+            table = pa.Table.from_pandas(df)
+            if writer is None:
+                writer = pq.ParquetWriter(args.output_path, table.schema)
+            writer.write_table(table)
+            del df, table
+            gc.collect()
+
+        if writer is not None:
+            writer.close()
+            print(f"[save] sequence training samples -> {args.output_path} "
+                  f"(total rows: {total_rows:,})")
+            try:
+                abs_path = os.path.abspath(args.output_path)
+                data_io.upload_to_drive(abs_path)
+                print(f"[drive] uploaded sequence dataset to Drive: {abs_path}")
+            except Exception as e:
+                print(f"[drive] WARNING: failed to upload sequence dataset: {e}")
 
     # Log baselines (global, over all shards)
     if not args.disable_baselines:
@@ -833,13 +904,14 @@ def main() -> None:
 if __name__ == "__main__":
     main()
 
-# python common_scripts/04_create_train_data.py
+# python common_scripts/04_create_train_data.py --resume-phase2
 """
 python common_scripts/04_create_train_data.py \
 --skip-user-sharding \
---skip-review-sharding
+--skip-review-sharding \
+--resume-phase2
 
-python common_scripts/04_create_train_data.py --skip-user-sharding --skip-review-sharding
+python common_scripts/04_create_train_data.py --skip-user-sharding --skip-review-sharding --resume-phase2
 
-python common_scripts/04_create_train_data.py --skip-user-sharding --skip-review-sharding --disable-prefix-cat-counts --sample-every-k-prefix 5
+python common_scripts/04_create_train_data.py --skip-user-sharding --skip-review-sharding --disable-prefix-cat-counts --sample-every-k-prefix 5 --resume-phase2
 """
