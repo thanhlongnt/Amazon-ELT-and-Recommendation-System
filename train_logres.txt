@@ -1,0 +1,108 @@
+[load:train] Loading split from 204 shard files (max_rows=1000000) ...
+[load:train]   +808,267 rows from sequence_user_shard=74.parquet (cumulative: 808,267)
+[load:train]   +191,733 rows from sequence_user_shard=103.parquet (cumulative: 1,000,000)
+[load:train] Final train size: 1,000,000 rows
+
+[load:val] Loading split from 25 shard files (max_rows=200000) ...
+[load:val]   +200,000 rows from sequence_user_shard=57.parquet (cumulative: 200,000)
+[load:val] Final val size: 200,000 rows
+
+[load:test] Loading split from 27 shard files (max_rows=200000) ...
+[load:test]   +200,000 rows from sequence_user_shard=214.parquet (cumulative: 200,000)
+[load:test] Final test size: 200,000 rows
+
+[baseline] Computing baselines on VAL split ...
+[baseline] Global majority class idx = 16
+[baseline] Val accuracy (global majority) = 0.1153
+[baseline] Val accuracy (last_category_idx) = 0.2371
+[baseline] Val accuracy (prefix_most_freq_category_idx) = 0.2416
+
+[fe] Preparing feature matrices ...
+[fe] Total feature columns: 101
+[fe] Numeric features    (94): ['num_purchases_in_category', 'avg_rating_in_category', 'avg_helpful_vote_in_category', 'avg_item_avg_rating', 'first_review_time', 'last_review_time', 'All_Beauty', 'Amazon_Fashion', 'Appliances', 'Arts_Crafts_and_Sewing', 'Automotive', 'Baby_Products', 'Beauty_and_Personal_Care', 'Books', 'CDs_and_Vinyl', 'Cell_Phones_and_Accessories', 'Clothing_Shoes_and_Jewelry', 'Digital_Music', 'Electronics', 'Gift_Cards', 'Grocery_and_Gourmet_Food', 'Handmade_Products', 'Health_and_Household', 'Health_and_Personal_Care', 'Home_and_Kitchen', 'Industrial_and_Scientific', 'Kindle_Store', 'Magazine_Subscriptions', 'Movies_and_TV', 'Musical_Instruments', 'Office_Products', 'Patio_Lawn_and_Garden', 'Pet_Supplies', 'Software', 'Sports_and_Outdoors', 'Subscription_Boxes', 'Tools_and_Home_Improvement', 'Toys_and_Games', 'Unknown', 'Video_Games', 'total_purchases', 'distinct_categories', 'entropy', 'norm_entropy', 'importance', 'prefix_length', 'prefix_timespan', 'prefix_avg_rating', 'prefix_avg_helpful', 'prefix_avg_item_avg_rating', 'last_rating', 'last_helpful_votes', 'last_item_avg_rating', 'last_verified', 'prefix_cat_count_Unknown', 'prefix_cat_count_All_Beauty', 'prefix_cat_count_Toys_and_Games', 'prefix_cat_count_Cell_Phones_and_Accessories', 'prefix_cat_count_Industrial_and_Scientific', 'prefix_cat_count_Gift_Cards', 'prefix_cat_count_Musical_Instruments', 'prefix_cat_count_Electronics', 'prefix_cat_count_Handmade_Products', 'prefix_cat_count_Arts_Crafts_and_Sewing', 'prefix_cat_count_Baby_Products', 'prefix_cat_count_Health_and_Household', 'prefix_cat_count_Office_Products', 'prefix_cat_count_Digital_Music', 'prefix_cat_count_Grocery_and_Gourmet_Food', 'prefix_cat_count_Sports_and_Outdoors', 'prefix_cat_count_Home_and_Kitchen', 'prefix_cat_count_Subscription_Boxes', 'prefix_cat_count_Tools_and_Home_Improvement', 'prefix_cat_count_Pet_Supplies', 'prefix_cat_count_Video_Games', 'prefix_cat_count_Kindle_Store', 'prefix_cat_count_Clothing_Shoes_and_Jewelry', 'prefix_cat_count_Patio_Lawn_and_Garden', 'prefix_cat_count_Books', 'prefix_cat_count_Automotive', 'prefix_cat_count_CDs_and_Vinyl', 'prefix_cat_count_Beauty_and_Personal_Care', 'prefix_cat_count_Amazon_Fashion', 'prefix_cat_count_Magazine_Subscriptions', 'prefix_cat_count_Software', 'prefix_cat_count_Health_and_Personal_Care', 'prefix_cat_count_Appliances', 'prefix_cat_count_Movies_and_TV', 'prefix_reviews_per_day', 'last_minus_prefix_avg_rating', 'last_item_avg_minus_prefix_item_avg', 'prefix_cat_dom_ratio', 'prefix_cat_entropy_dynamic', 'prefix_cat_norm_entropy_dynamic']
+[fe] Categorical idx features (7): ['last_category_idx', 'last_1_category_idx', 'last_2_category_idx', 'last_3_category_idx', 'last_4_category_idx', 'last_5_category_idx', 'prefix_most_freq_category_idx']
+
+[model] Building preprocessing pipeline + multinomial logistic regression ...
+
+[train] Fitting model on TRAIN split ...
+/Users/thanhlongnt/Code/UCSD/CSE158/cse158_asgn2/.venv/lib/python3.12/site-packages/sklearn/linear_model/_logistic.py:1272: FutureWarning: 'multi_class' was deprecated in version 1.5 and will be removed in 1.8. From then on, it will always use 'multinomial'. Leave it to its default value to avoid this warning.
+  warnings.warn(
+[Parallel(n_jobs=-1)]: Using backend LokyBackend with 10 concurrent workers.
+/Users/thanhlongnt/Code/UCSD/CSE158/cse158_asgn2/.venv/lib/python3.12/site-packages/sklearn/linear_model/_logistic.py:473: ConvergenceWarning: lbfgs failed to converge after 400 iteration(s) (status=1):
+STOP: TOTAL NO. OF ITERATIONS REACHED LIMIT
+
+Increase the number of iterations to improve the convergence (max_iter=400).
+You might also want to scale the data as shown in:
+    https://scikit-learn.org/stable/modules/preprocessing.html
+Please also refer to the documentation for alternative solver options:
+    https://scikit-learn.org/stable/modules/linear_model.html#logistic-regression
+  n_iter_i = _check_optimize_result(
+[train] Done.
+
+[eval:train] Evaluating on train set (n=1,000,000) ...
+[eval:train] Accuracy = 0.2846
+[eval:train] Top-3 accuracy = 0.5308
+
+[eval:val] Evaluating on val set (n=200,000) ...
+[eval:val] Accuracy = 0.2803
+[eval:val] Top-3 accuracy = 0.5255
+
+[eval:test] Evaluating on test set (n=200,000) ...
+[eval:test] Accuracy = 0.2800
+[eval:test] Top-3 accuracy = 0.5263
+
+[summary] Accuracies:
+  Train: 0.2846
+  Val:   0.2803
+  Test:  0.2800
+  
+[report:test] Classification report on TEST split:
+/Users/thanhlongnt/Code/UCSD/CSE158/cse158_asgn2/.venv/lib/python3.12/site-packages/sklearn/metrics/_classification.py:1731: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 in labels with no predicted samples. Use `zero_division` parameter to control this behavior.
+  _warn_prf(average, modifier, f"{metric.capitalize()} is", result.shape[0])
+/Users/thanhlongnt/Code/UCSD/CSE158/cse158_asgn2/.venv/lib/python3.12/site-packages/sklearn/metrics/_classification.py:1731: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 in labels with no predicted samples. Use `zero_division` parameter to control this behavior.
+  _warn_prf(average, modifier, f"{metric.capitalize()} is", result.shape[0])
+/Users/thanhlongnt/Code/UCSD/CSE158/cse158_asgn2/.venv/lib/python3.12/site-packages/sklearn/metrics/_classification.py:1731: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 in labels with no predicted samples. Use `zero_division` parameter to control this behavior.
+  _warn_prf(average, modifier, f"{metric.capitalize()} is", result.shape[0])
+              precision    recall  f1-score   support
+
+           0     0.2023    0.2471    0.2225     21805
+           1     0.0000    0.0000    0.0000       232
+           2     0.2606    0.1558    0.1950      5560
+           3     0.2168    0.1031    0.1397      5550
+           4     0.1837    0.0388    0.0641      2086
+           5     0.2000    0.0169    0.0312        59
+           6     0.2897    0.0962    0.1444      1081
+           7     0.2504    0.2840    0.2661     13821
+           8     0.0417    0.0050    0.0090       199
+           9     0.3150    0.2298    0.2657      3629
+          10     0.2202    0.1011    0.1386      1830
+          11     0.1891    0.0751    0.1075      9691
+          12     0.1800    0.0591    0.0890      4717
+          13     0.0267    0.0385    0.0315        52
+          14     0.2610    0.1524    0.1924      5701
+          15     0.2289    0.1142    0.1524      6331
+          16     0.2236    0.4435    0.2973     23137
+          17     0.0000    0.0000    0.0000         9
+          18     0.2327    0.1617    0.1908     10281
+          19     0.2601    0.1810    0.2134      6349
+          20     0.3792    0.0817    0.1344      1249
+          21     0.6058    0.6951    0.6474     11818
+          22     0.2541    0.3916    0.3082     20444
+          23     0.2155    0.1074    0.1434      6042
+          24     0.4540    0.4093    0.4305     11809
+          25     0.3245    0.3360    0.3302      7223
+          26     0.4984    0.3180    0.3883      1981
+          27     0.2825    0.1294    0.1775      7997
+          28     0.0000    0.0000    0.0000       849
+          29     0.0588    0.1290    0.0808        31
+          30     0.3613    0.0900    0.1441      1433
+          31     0.0000    0.0000    0.0000       201
+          32     0.0512    0.0162    0.0246       680
+          33     0.3909    0.3810    0.3859      6123
+
+    accuracy                         0.2800    200000
+   macro avg     0.2253    0.1644    0.1749    200000
+weighted avg     0.2783    0.2800    0.2643    200000
+
+
+All done.
