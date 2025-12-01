@@ -739,7 +739,6 @@ def main() -> None:
 
     # Make sure per-shard output directory exists
     os.makedirs(args.per_shard_output_dir, exist_ok=True)
-    #writer = None
     baseline_stats = BaselineStats()
 
     print("\n=== Phase 2: Building sequence samples per shard ===")
@@ -755,20 +754,65 @@ def main() -> None:
             f"sequence_{shard_name}.parquet",
         )
 
-        # If resuming and this shard already has output, skip the heavy work
-        if args.resume_phase2 and os.path.exists(shard_output_path):
-            print(f"[phase2] shard {shard_name}: found existing {shard_output_path}, skipping sequence build.")
+        # -----------------------------------------------------------------
+        # Upgrade-aware resume logic:
+        #   - If resume_phase2 and file exists, we inspect whether it already
+        #     contains prefix_cat_count_* columns.
+        #   - If prefix counts are required (disable_prefix_cat_counts=False)
+        #     but missing, we rebuild this shard.
+        #   - Otherwise, we reuse the existing shard and optionally update
+        #     baselines from it.
+        # -----------------------------------------------------------------
+        if os.path.exists(shard_output_path) and args.resume_phase2:
+            print(f"[phase2] shard {shard_name}: found existing {shard_output_path}, inspecting schema...")
 
-            # Optionally rebuild baselines from existing shard output
-            if not args.disable_baselines:
-                print(f"[phase2] shard {shard_name}: reloading shard for baselines...")
-                existing_df = pd.read_parquet(shard_output_path)
-                baseline_stats.update_from_shard(existing_df)
-                print(f"[phase2] shard {shard_name}: reused {len(existing_df):,} samples for baselines.")
-                del existing_df
-                gc.collect()
+            # Cheaply inspect schema via pyarrow without loading full data
+            pf = pq.ParquetFile(shard_output_path)
+            col_names = pf.schema.names
+            has_prefix_counts = any(
+                name.startswith("prefix_cat_count_") for name in col_names
+            )
 
-            continue
+            # Case 1: User *doesn't* want prefix counts this run
+            if args.disable_prefix_cat_counts:
+                print(f"[phase2] shard {shard_name}: reusing existing shard "
+                      f"(prefix_cat_counts disabled for this run).")
+
+                if not args.disable_baselines:
+                    print(f"[phase2] shard {shard_name}: loading existing shard for baselines...")
+                    existing_df = pf.read().to_pandas()
+                    baseline_stats.update_from_shard(existing_df)
+                    print(f"[phase2] shard {shard_name}: reused {len(existing_df):,} samples for baselines.")
+                    del existing_df
+                    gc.collect()
+
+                # Skip heavy work
+                continue
+
+            # Case 2: User *does* want prefix counts and they already exist
+            if has_prefix_counts:
+                print(f"[phase2] shard {shard_name}: already has prefix_cat_count_* features; reusing.")
+
+                if not args.disable_baselines:
+                    print(f"[phase2] shard {shard_name}: loading existing shard for baselines...")
+                    existing_df = pf.read().to_pandas()
+                    baseline_stats.update_from_shard(existing_df)
+                    print(f"[phase2] shard {shard_name}: reused {len(existing_df):,} samples for baselines.")
+                    del existing_df
+                    gc.collect()
+
+                # Skip heavy work
+                continue
+
+            # Case 3: User wants prefix counts but they are missing -> rebuild
+            print(f"[phase2] shard {shard_name}: existing file lacks prefix_cat_count_*; "
+                  f"rebuilding this shard with new features (will overwrite).")
+
+        # If we got here, either:
+        #   - shard_output_path doesn't exist, or
+        #   - resume_phase2=False, or
+        #   - we explicitly decided to rebuild because we are upgrading
+        #     to include prefix_cat_count_* features.
 
         # Load review shard
         rfiles = [
@@ -839,7 +883,7 @@ def main() -> None:
             print(f"[phase2] cumulative samples so far (no baselines): "
                   f"{shard_samples:,} this shard")
 
-        # Write per-shard output
+        # Write / overwrite per-shard output
         table = pa.Table.from_pandas(seq_df_shard)
         pq.write_table(table, shard_output_path)
         print(f"[phase2] shard {shard_name}: wrote per-shard output -> {shard_output_path}")
@@ -912,7 +956,7 @@ python common_scripts/04_create_train_data.py \
 --skip-review-sharding \
 --resume-phase2
 
-python common_scripts/04_create_train_data.py --skip-user-sharding --skip-review-sharding --resume-phase2
+python common_scripts/04_create_train_data.py --skip-user-sharding --skip-review-sharding --sample-every-k-prefix 10 --resume-phase2
 
 python common_scripts/04_create_train_data.py --skip-user-sharding --skip-review-sharding --disable-prefix-cat-counts --sample-every-k-prefix 5 --resume-phase2
 """
