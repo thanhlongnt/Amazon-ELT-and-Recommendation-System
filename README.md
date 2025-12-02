@@ -30,7 +30,7 @@ This stage aggregates the per-category user data to identify and score the most 
     * **Global Aggregation:** Combines all user counts into a single user-category matrix, calculating **total purchases** and **distinct categories** per user.
     * **Diversity Scoring:** Computes **entropy** (a measure of diversity across categories) and **normalized entropy**.
     * **Importance Scoring:** Calculates a **user importance score** based on the formula:
-        $$\text{importance} = \text{total\_purchases} \times (1 + \text{norm\_entropy})$$
+       $$ \text{importance} = \text{total\_purchases} \times (1 + \text{norm\_entropy})$$
     * **Top User Extraction:** Filters users who meet strict criteria (e.g., importance $\ge$ 95th percentile, $\ge 3$ distinct categories, $\ge 3$ total purchases).
 * **Outputs:**
     * `user_total_purchases_hist.png` and `user_distinct_categories_hist.png`.
@@ -68,9 +68,3 @@ The final stage transforms the filtered review data into a sequential, temporal 
 * **Outputs:**
     * `sequence_training_samples.parquet`: The final, global training dataset containing all engineered features and the target category index.
     * Temporary directories for sharded data (`data/tmp/`).
-
----
-
-The overall structure uses a tiered approach: **Per-Category Raw Processing (01)** $\rightarrow$ **Global User Filtering (02)** $\rightarrow$ **Filtered Feature Extraction (03)** $\rightarrow$ **Temporal Sequence Dataset Construction (04)**.
-
-Would you like a more detailed breakdown of a specific script or feature?
