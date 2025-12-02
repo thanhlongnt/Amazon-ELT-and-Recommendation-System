@@ -369,35 +369,35 @@ def main():
     models = {}
 
     # # 6.1 Linear SVM (on OHE + scaled numeric)
-    # models["linear_svm"] = Pipeline(
-    #     steps=[
-    #         ("preprocessor", linear_preprocessor),
-    #         (
-    #             "clf",
-    #             LinearSVC(
-    #                 C=1.0,
-    #                 class_weight="balanced",
-    #                 max_iter=5000,
-    #                 verbose=1,
-    #             ),
-    #         ),
-    #     ]
-    # )
+    models["linear_svm"] = Pipeline(
+        steps=[
+            ("preprocessor", linear_preprocessor),
+            (
+                "clf",
+                LinearSVC(
+                    C=1.0,
+                    class_weight="balanced",
+                    max_iter=5000,
+                    verbose=1,
+                ),
+            ),
+        ]
+    )
 
-    # # 6.2 Decision tree (raw numeric + integer categories)
-    # models["decision_tree"] = Pipeline(
-    #     steps=[
-    #         ("preprocessor", tree_preprocessor),
-    #         (
-    #             "clf",
-    #             DecisionTreeClassifier(
-    #                 max_depth=20,
-    #                 min_samples_leaf=50,
-    #                 random_state=RANDOM_SEED,
-    #             ),
-    #         ),
-    #     ]
-    # )
+    # 6.2 Decision tree (raw numeric + integer categories)
+    models["decision_tree"] = Pipeline(
+        steps=[
+            ("preprocessor", tree_preprocessor),
+            (
+                "clf",
+                DecisionTreeClassifier(
+                    max_depth=20,
+                    min_samples_leaf=50,
+                    random_state=RANDOM_SEED,
+                ),
+            ),
+        ]
+    )
 
     # 6.3 Random forest (also on imputed numeric + ints)
     models["random_forest"] = Pipeline(
