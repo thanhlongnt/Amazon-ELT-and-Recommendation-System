@@ -1,0 +1,79 @@
+[baseline] Computing baselines on VAL split ...
+[baseline] Global majority class idx = 16
+[baseline] Val accuracy (global majority) = 0.1152
+[baseline] Val accuracy (last_category_idx) = 0.2355
+[baseline] Val accuracy (prefix_most_freq_category_idx) = 0.2409
+
+[fe] Shapes after prep for HistGBM:
+  X_train: (300000, 95), y_train: (300000,)
+  X_val:   (100000, 95),   y_val:   (100000,)
+  X_test:  (100000, 95),  y_test:  (100000,)
+
+[histgbm] Training HistGradientBoostingClassifier ...
+Binning 0.205 GB of training data: 0.852 s
+Binning 0.023 GB of validation data: 0.028 s
+Fitting gradient boosted rounds:
+Fit 2550 trees in 120.153 s, (151400 total leaves)
+Time spent computing histograms: 75.476s
+Time spent finding best splits:  8.725s
+Time spent applying splits:      8.788s
+Time spent predicting:           1.051s
+[histgbm] Training done.
+[histgbm:train] Evaluating on train (n=300,000) ...
+[histgbm:train] Accuracy = 0.4450
+[histgbm:train] Top-3 accuracy = 0.7547
+[histgbm:val] Evaluating on val (n=100,000) ...
+[histgbm:val] Accuracy = 0.3201
+[histgbm:val] Top-3 accuracy = 0.6131
+[histgbm:test] Evaluating on test (n=100,000) ...
+[histgbm:test] Accuracy = 0.3212
+[histgbm:test] Top-3 accuracy = 0.6153
+
+[histgbm] Summary:
+  Train acc: 0.4450
+  Val   acc: 0.3201
+  Test  acc: 0.3212
+  Val   top-3: 0.6131
+  Test  top-3: 0.6153
+
+[histgbm:report:test] Classification report on TEST split:
+              precision    recall  f1-score   support
+
+           0     0.2532    0.2621    0.2576     10929
+           1     0.0488    0.0189    0.0272       106
+           2     0.2899    0.2014    0.2377      2776
+           3     0.2502    0.1176    0.1600      2781
+           4     0.2596    0.0914    0.1352      1039
+           5     0.0000    0.0000    0.0000        31
+           6     0.2345    0.2204    0.2272       549
+           7     0.2918    0.3229    0.3066      6962
+           8     0.3125    0.0515    0.0885        97
+           9     0.3478    0.2477    0.2894      1873
+          10     0.2257    0.1501    0.1803       913
+          11     0.2628    0.1502    0.1911      4861
+          12     0.2469    0.0948    0.1370      2341
+          13     0.0000    0.0000    0.0000        28
+          14     0.3168    0.2090    0.2519      2818
+          15     0.2781    0.1681    0.2095      3177
+          16     0.2787    0.4442    0.3425     11489
+          17     0.2000    0.1667    0.1818         6
+          18     0.2712    0.2209    0.2435      5052
+          19     0.3021    0.2354    0.2646      3233
+          20     0.2587    0.1431    0.1843       622
+          21     0.5688    0.7646    0.6523      5859
+          22     0.3084    0.4364    0.3614     10294
+          23     0.2692    0.1537    0.1957      2987
+          24     0.4557    0.4215    0.4379      5936
+          25     0.3367    0.4191    0.3734      3536
+          26     0.3959    0.4120    0.4038       983
+          27     0.3130    0.2118    0.2526      4122
+          28     0.1111    0.0523    0.0711       421
+          29     0.0000    0.0000    0.0000        15
+          30     0.2727    0.2203    0.2437       681
+          31     0.1111    0.0190    0.0325       105
+          32     0.1047    0.0528    0.0702       341
+          33     0.3800    0.4162    0.3973      3037
+
+    accuracy                         0.3212    100000
+   macro avg     0.2517    0.2087    0.2179    100000
+weighted avg     0.3125    0.3212    0.3071    100000
