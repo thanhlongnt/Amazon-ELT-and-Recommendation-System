@@ -1,0 +1,14 @@
+[baseline] Global majority category:
+  majority_category = Home_and_Kitchen
+  accuracy          = 0.1151
+
+[baseline] Per-user majority category:
+  accuracy          = 0.2815
+
+[baseline] Last-category baseline:
+  accuracy          = 0.2404
+
+[baseline] summary:
+  Global majority:   0.1151
+  Per-user majority: 0.2815
+  Last-category:     0.2404
