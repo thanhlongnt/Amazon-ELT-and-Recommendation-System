@@ -1,0 +1,17 @@
+[LibLinear][linear_svm] Training done.
+[linear_svm:train] Evaluating on train (n=300,000) ...
+[linear_svm:train] Accuracy = 0.2213
+[linear_svm:train] Top-3 accuracy = 0.4464
+[linear_svm:val] Evaluating on val (n=100,000) ...
+[linear_svm:val] Accuracy = 0.2074
+[linear_svm:val] Top-3 accuracy = 0.4325
+[linear_svm:test] Evaluating on test (n=100,000) ...
+[linear_svm:test] Accuracy = 0.2109
+[linear_svm:test] Top-3 accuracy = 0.4381
+
+[linear_svm] Summary:
+  Train acc: 0.2213
+  Val   acc: 0.2074
+  Test  acc: 0.2109
+  Val   top-3: 0.4325
+  Test  top-3: 0.4381
