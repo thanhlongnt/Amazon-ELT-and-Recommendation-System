@@ -1,0 +1,104 @@
+[fe] Preparing feature matrices ...
+[fe] Total feature columns: 95
+[fe] Numeric features (88):
+     ['num_purchases_in_category', 'avg_rating_in_category', 'avg_helpful_vote_in_category', 'avg_item_avg_rating', 'first_review_time', 'last_review_time', 'All_Beauty', 'Amazon_Fashion', 'Appliances', 'Arts_Crafts_and_Sewing', 'Automotive', 'Baby_Products', 'Beauty_and_Personal_Care', 'Books', 'CDs_and_Vinyl', 'Cell_Phones_and_Accessories', 'Clothing_Shoes_and_Jewelry', 'Digital_Music', 'Electronics', 'Gift_Cards', 'Grocery_and_Gourmet_Food', 'Handmade_Products', 'Health_and_Household', 'Health_and_Personal_Care', 'Home_and_Kitchen', 'Industrial_and_Scientific', 'Kindle_Store', 'Magazine_Subscriptions', 'Movies_and_TV', 'Musical_Instruments', 'Office_Products', 'Patio_Lawn_and_Garden', 'Pet_Supplies', 'Software', 'Sports_and_Outdoors', 'Subscription_Boxes', 'Tools_and_Home_Improvement', 'Toys_and_Games', 'Unknown', 'Video_Games', 'total_purchases', 'distinct_categories', 'entropy', 'norm_entropy', 'importance', 'prefix_length', 'prefix_timespan', 'prefix_avg_rating', 'prefix_avg_helpful', 'prefix_avg_item_avg_rating', 'last_rating', 'last_helpful_votes', 'last_item_avg_rating', 'last_verified', 'prefix_cat_count_Unknown', 'prefix_cat_count_All_Beauty', 'prefix_cat_count_Toys_and_Games', 'prefix_cat_count_Cell_Phones_and_Accessories', 'prefix_cat_count_Industrial_and_Scientific', 'prefix_cat_count_Gift_Cards', 'prefix_cat_count_Musical_Instruments', 'prefix_cat_count_Electronics', 'prefix_cat_count_Handmade_Products', 'prefix_cat_count_Arts_Crafts_and_Sewing', 'prefix_cat_count_Baby_Products', 'prefix_cat_count_Health_and_Household', 'prefix_cat_count_Office_Products', 'prefix_cat_count_Digital_Music', 'prefix_cat_count_Grocery_and_Gourmet_Food', 'prefix_cat_count_Sports_and_Outdoors', 'prefix_cat_count_Home_and_Kitchen', 'prefix_cat_count_Subscription_Boxes', 'prefix_cat_count_Tools_and_Home_Improvement', 'prefix_cat_count_Pet_Supplies', 'prefix_cat_count_Video_Games', 'prefix_cat_count_Kindle_Store', 'prefix_cat_count_Clothing_Shoes_and_Jewelry', 'prefix_cat_count_Patio_Lawn_and_Garden', 'prefix_cat_count_Books', 'prefix_cat_count_Automotive', 'prefix_cat_count_CDs_and_Vinyl', 'prefix_cat_count_Beauty_and_Personal_Care', 'prefix_cat_count_Amazon_Fashion', 'prefix_cat_count_Magazine_Subscriptions', 'prefix_cat_count_Software', 'prefix_cat_count_Health_and_Personal_Care', 'prefix_cat_count_Appliances', 'prefix_cat_count_Movies_and_TV']
+[fe] Categorical idx features (7):
+     ['last_category_idx', 'last_1_category_idx', 'last_2_category_idx', 'last_3_category_idx', 'last_4_category_idx', 'last_5_category_idx', 'prefix_most_freq_category_idx']
+
+
+================ MODEL: decision_tree ================
+[decision_tree] Training...
+[decision_tree] Training done.
+[decision_tree:train] Evaluating on train (n=300,000) ...
+[decision_tree:train] Accuracy = 0.3152
+[decision_tree:train] Top-3 accuracy = 0.5601
+[decision_tree:val] Evaluating on val (n=100,000) ...
+[decision_tree:val] Accuracy = 0.2327
+[decision_tree:val] Top-3 accuracy = 0.4496
+[decision_tree:test] Evaluating on test (n=100,000) ...
+[decision_tree:test] Accuracy = 0.2367
+[decision_tree:test] Top-3 accuracy = 0.4549
+
+[decision_tree] Summary:
+  Train acc: 0.3152
+  Val   acc: 0.2327
+  Test  acc: 0.2367
+  Val   top-3: 0.4496
+  Test  top-3: 0.4549
+
+
+================ MODEL: random_forest ================
+[random_forest] Training...
+[random_forest] Training done.
+[random_forest:train] Evaluating on train (n=300,000) ...
+[random_forest:train] Accuracy = 0.3912
+[random_forest:train] Top-3 accuracy = 0.6882
+[random_forest:val] Evaluating on val (n=100,000) ...
+[random_forest:val] Accuracy = 0.2685
+[random_forest:val] Top-3 accuracy = 0.5201
+[random_forest:test] Evaluating on test (n=100,000) ...
+[random_forest:test] Accuracy = 0.2722
+[random_forest:test] Top-3 accuracy = 0.5215
+
+[random_forest] Summary:
+  Train acc: 0.3912
+  Val   acc: 0.2685
+  Test  acc: 0.2722
+  Val   top-3: 0.5201
+  Test  top-3: 0.5215
+
+
+================ BEST MODEL (by val acc) ================
+Best model: random_forest
+  Val acc   = 0.2685
+  Test acc  = 0.2722
+  Val top-3 = 0.5201
+  Test top-3 = 0.5215
+
+[report:test] Classification report for BEST model on TEST split:
+C:\Users\uzair\miniconda3\envs\uni\lib\site-packages\sklearn\metrics\_classification.py:1731: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 in labels with no predicted samples. Use `zero_division` parameter to control this behavior.
+  _warn_prf(average, modifier, f"{metric.capitalize()} is", result.shape[0])
+C:\Users\uzair\miniconda3\envs\uni\lib\site-packages\sklearn\metrics\_classification.py:1731: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 in labels with no predicted samples. Use `zero_division` parameter to control this behavior.
+  _warn_prf(average, modifier, f"{metric.capitalize()} is", result.shape[0])
+C:\Users\uzair\miniconda3\envs\uni\lib\site-packages\sklearn\metrics\_classification.py:1731: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 in labels with no predicted samples. Use `zero_division` parameter to control this behavior.
+  _warn_prf(average, modifier, f"{metric.capitalize()} is", result.shape[0])
+              precision    recall  f1-score   support
+
+           0     0.2040    0.2289    0.2157     10929
+           1     0.0000    0.0000    0.0000       106
+           2     0.4360    0.0331    0.0616      2776
+           3     0.3333    0.0014    0.0029      2781
+           4     0.0000    0.0000    0.0000      1039
+           5     0.0000    0.0000    0.0000        31
+           6     0.0000    0.0000    0.0000       549
+           7     0.2379    0.3279    0.2758      6962
+           8     0.0000    0.0000    0.0000        97
+           9     0.5099    0.0411    0.0761      1873
+          10     0.0000    0.0000    0.0000       913
+          11     0.2472    0.0183    0.0341      4861
+          12     0.0000    0.0000    0.0000      2341
+          13     0.0000    0.0000    0.0000        28
+          14     0.2808    0.0291    0.0527      2818
+          15     0.3107    0.0274    0.0503      3177
+          16     0.2048    0.5727    0.3017     11489
+          17     0.0000    0.0000    0.0000         6
+          18     0.2162    0.1182    0.1528      5052
+          19     0.3361    0.0507    0.0881      3233
+          20     0.0000    0.0000    0.0000       622
+          21     0.5111    0.7981    0.6231      5859
+          22     0.2547    0.4502    0.3253     10294
+          23     0.1000    0.0003    0.0007      2987
+          24     0.4392    0.3779    0.4062      5936
+          25     0.2875    0.4041    0.3360      3536
+          26     0.6127    0.2543    0.3595       983
+          27     0.3690    0.0653    0.1109      4122
+          28     0.0000    0.0000    0.0000       421
+          29     0.0000    0.0000    0.0000        15
+          30     0.0000    0.0000    0.0000       681
+          31     0.0000    0.0000    0.0000       105
+          32     0.0000    0.0000    0.0000       341
+          33     0.4001    0.3806    0.3901      3037
+
+    accuracy                         0.2722    100000
+   macro avg     0.1850    0.1229    0.1136    100000
+weighted avg     0.2737    0.2722    0.2219    100000
