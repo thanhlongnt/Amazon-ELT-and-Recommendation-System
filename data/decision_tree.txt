@@ -1,3 +1,28 @@
+[shards] Listing shard files under data/global/sequence_samples_by_shard ...
+[shards] Found 256 shard files.
+[shards] Split into:
+  train shards: 204
+  val shards:   25
+  test shards:  27
+
+[load:train] Loading split from 204 shard files (max_rows=300000) ...
+[load:train]   +300,000 rows from sequence_user_shard=74.parquet (cumulative: 300,000)
+[load:train] Final train size: 300,000 rows
+
+[load:val] Loading split from 25 shard files (max_rows=100000) ...
+[load:val]   +100,000 rows from sequence_user_shard=57.parquet (cumulative: 100,000)
+[load:val] Final val size: 100,000 rows
+
+[load:test] Loading split from 27 shard files (max_rows=100000) ...
+[load:test]   +100,000 rows from sequence_user_shard=214.parquet (cumulative: 100,000)
+[load:test] Final test size: 100,000 rows
+
+[baseline] Computing baselines on VAL split ...
+[baseline] Global majority class idx = 16
+[baseline] Val accuracy (global majority) = 0.1152
+[baseline] Val accuracy (last_category_idx) = 0.2355
+[baseline] Val accuracy (prefix_most_freq_category_idx) = 0.2409
+
 [fe] Preparing feature matrices ...
 [fe] Total feature columns: 95
 [fe] Numeric features (88):
@@ -17,88 +42,64 @@
 [decision_tree:val] Top-3 accuracy = 0.4496
 [decision_tree:test] Evaluating on test (n=100,000) ...
 [decision_tree:test] Accuracy = 0.2367
-[decision_tree:test] Top-3 accuracy = 0.4549
+[decision_tree:test] Top-3 accuracy = 0.4548
 
 [decision_tree] Summary:
   Train acc: 0.3152
   Val   acc: 0.2327
   Test  acc: 0.2367
   Val   top-3: 0.4496
-  Test  top-3: 0.4549
-
-
-================ MODEL: random_forest ================
-[random_forest] Training...
-[random_forest] Training done.
-[random_forest:train] Evaluating on train (n=300,000) ...
-[random_forest:train] Accuracy = 0.3912
-[random_forest:train] Top-3 accuracy = 0.6882
-[random_forest:val] Evaluating on val (n=100,000) ...
-[random_forest:val] Accuracy = 0.2685
-[random_forest:val] Top-3 accuracy = 0.5201
-[random_forest:test] Evaluating on test (n=100,000) ...
-[random_forest:test] Accuracy = 0.2722
-[random_forest:test] Top-3 accuracy = 0.5215
-
-[random_forest] Summary:
-  Train acc: 0.3912
-  Val   acc: 0.2685
-  Test  acc: 0.2722
-  Val   top-3: 0.5201
-  Test  top-3: 0.5215
+  Test  top-3: 0.4548
 
 
 ================ BEST MODEL (by val acc) ================
-Best model: random_forest
-  Val acc   = 0.2685
-  Test acc  = 0.2722
-  Val top-3 = 0.5201
-  Test top-3 = 0.5215
+Best model: decision_tree
+  Val acc   = 0.2327
+  Test acc  = 0.2367
+  Val top-3 = 0.4496
+  Test top-3 = 0.4548
 
 [report:test] Classification report for BEST model on TEST split:
-C:\Users\uzair\miniconda3\envs\uni\lib\site-packages\sklearn\metrics\_classification.py:1731: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 in labels with no predicted samples. Use `zero_division` parameter to control this behavior.
-  _warn_prf(average, modifier, f"{metric.capitalize()} is", result.shape[0])
-C:\Users\uzair\miniconda3\envs\uni\lib\site-packages\sklearn\metrics\_classification.py:1731: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 in labels with no predicted samples. Use `zero_division` parameter to control this behavior.
-  _warn_prf(average, modifier, f"{metric.capitalize()} is", result.shape[0])
-C:\Users\uzair\miniconda3\envs\uni\lib\site-packages\sklearn\metrics\_classification.py:1731: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 in labels with no predicted samples. Use `zero_division` parameter to control this behavior.
-  _warn_prf(average, modifier, f"{metric.capitalize()} is", result.shape[0])
               precision    recall  f1-score   support
 
-           0     0.2040    0.2289    0.2157     10929
+           0     0.1784    0.2085    0.1923     10929
            1     0.0000    0.0000    0.0000       106
-           2     0.4360    0.0331    0.0616      2776
-           3     0.3333    0.0014    0.0029      2781
-           4     0.0000    0.0000    0.0000      1039
+           2     0.1883    0.0973    0.1283      2776
+           3     0.1009    0.0212    0.0351      2781
+           4     0.0874    0.0087    0.0158      1039
            5     0.0000    0.0000    0.0000        31
-           6     0.0000    0.0000    0.0000       549
-           7     0.2379    0.3279    0.2758      6962
+           6     0.0476    0.0128    0.0201       549
+           7     0.2117    0.2535    0.2307      6962
            8     0.0000    0.0000    0.0000        97
-           9     0.5099    0.0411    0.0761      1873
-          10     0.0000    0.0000    0.0000       913
-          11     0.2472    0.0183    0.0341      4861
-          12     0.0000    0.0000    0.0000      2341
+           9     0.2327    0.0609    0.0965      1873
+          10     0.1458    0.0153    0.0278       913
+          11     0.1233    0.0765    0.0945      4861
+          12     0.0667    0.0081    0.0145      2341
           13     0.0000    0.0000    0.0000        28
-          14     0.2808    0.0291    0.0527      2818
-          15     0.3107    0.0274    0.0503      3177
-          16     0.2048    0.5727    0.3017     11489
+          14     0.1733    0.1022    0.1286      2818
+          15     0.1611    0.0781    0.1052      3177
+          16     0.1940    0.3995    0.2611     11489
           17     0.0000    0.0000    0.0000         6
-          18     0.2162    0.1182    0.1528      5052
-          19     0.3361    0.0507    0.0881      3233
+          18     0.1666    0.1419    0.1533      5052
+          19     0.1745    0.1120    0.1364      3233
           20     0.0000    0.0000    0.0000       622
-          21     0.5111    0.7981    0.6231      5859
-          22     0.2547    0.4502    0.3253     10294
-          23     0.1000    0.0003    0.0007      2987
-          24     0.4392    0.3779    0.4062      5936
-          25     0.2875    0.4041    0.3360      3536
-          26     0.6127    0.2543    0.3595       983
-          27     0.3690    0.0653    0.1109      4122
+          21     0.5289    0.6788    0.5946      5859
+          22     0.2304    0.3573    0.2801     10294
+          23     0.0949    0.0315    0.0473      2987
+          24     0.4009    0.3331    0.3639      5936
+          25     0.2608    0.3080    0.2825      3536
+          26     0.5323    0.2767    0.3641       983
+          27     0.1875    0.0922    0.1236      4122
           28     0.0000    0.0000    0.0000       421
           29     0.0000    0.0000    0.0000        15
-          30     0.0000    0.0000    0.0000       681
+          30     0.1727    0.0279    0.0480       681
           31     0.0000    0.0000    0.0000       105
           32     0.0000    0.0000    0.0000       341
-          33     0.4001    0.3806    0.3901      3037
+          33     0.3331    0.3536    0.3431      3037
 
-    accuracy                         0.2722    100000
-   macro avg     0.1850    0.1229    0.1136    100000
-weighted avg     0.2737    0.2722    0.2219    100000
+    accuracy                         0.2367    100000
+   macro avg     0.1469    0.1193    0.1202    100000
+weighted avg     0.2178    0.2367    0.2141    100000
+
+
+All done.

@@ -368,21 +368,21 @@ def main():
     # 6. Define models
     models = {}
 
-    # 6.1 Linear SVM (on OHE + scaled numeric)
-    models["linear_svm"] = Pipeline(
-        steps=[
-            ("preprocessor", linear_preprocessor),
-            (
-                "clf",
-                LinearSVC(
-                    C=1.0,
-                    class_weight="balanced",
-                    max_iter=5000,
-                    verbose=1,
-                ),
-            ),
-        ]
-    )
+    # # 6.1 Linear SVM (on OHE + scaled numeric)
+    # models["linear_svm"] = Pipeline(
+    #     steps=[
+    #         ("preprocessor", linear_preprocessor),
+    #         (
+    #             "clf",
+    #             LinearSVC(
+    #                 C=1.0,
+    #                 class_weight="balanced",
+    #                 max_iter=5000,
+    #                 verbose=1,
+    #             ),
+    #         ),
+    #     ]
+    # )
 
     # # 6.2 Decision tree (raw numeric + integer categories)
     # models["decision_tree"] = Pipeline(
@@ -399,22 +399,22 @@ def main():
     #     ]
     # )
 
-    # # 6.3 Random forest (also on imputed numeric + ints)
-    # models["random_forest"] = Pipeline(
-    #     steps=[
-    #         ("preprocessor", tree_preprocessor),
-    #         (
-    #             "clf",
-    #             RandomForestClassifier(
-    #                 n_estimators=100,
-    #                 max_depth=25,
-    #                 min_samples_leaf=20,
-    #                 n_jobs=-1,
-    #                 random_state=RANDOM_SEED,
-    #             ),
-    #         ),
-    #     ]
-    # )
+    # 6.3 Random forest (also on imputed numeric + ints)
+    models["random_forest"] = Pipeline(
+        steps=[
+            ("preprocessor", tree_preprocessor),
+            (
+                "clf",
+                RandomForestClassifier(
+                    n_estimators=100,
+                    max_depth=25,
+                    min_samples_leaf=20,
+                    n_jobs=-1,
+                    random_state=RANDOM_SEED,
+                ),
+            ),
+        ]
+    )
 
     # 7. Train & evaluate each model
     all_metrics = {}

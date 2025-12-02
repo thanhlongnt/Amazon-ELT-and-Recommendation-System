@@ -1,0 +1,105 @@
+[shards] Listing shard files under data/global/sequence_samples_by_shard ...
+[shards] Found 256 shard files.
+[shards] Split into:
+  train shards: 204
+  val shards:   25
+  test shards:  27
+
+[load:train] Loading split from 204 shard files (max_rows=300000) ...
+[load:train]   +300,000 rows from sequence_user_shard=74.parquet (cumulative: 300,000)
+[load:train] Final train size: 300,000 rows
+
+[load:val] Loading split from 25 shard files (max_rows=100000) ...
+[load:val]   +100,000 rows from sequence_user_shard=57.parquet (cumulative: 100,000)
+[load:val] Final val size: 100,000 rows
+
+[load:test] Loading split from 27 shard files (max_rows=100000) ...
+[load:test]   +100,000 rows from sequence_user_shard=214.parquet (cumulative: 100,000)
+[load:test] Final test size: 100,000 rows
+
+[baseline] Computing baselines on VAL split ...
+[baseline] Global majority class idx = 16
+[baseline] Val accuracy (global majority) = 0.1152
+[baseline] Val accuracy (last_category_idx) = 0.2355
+[baseline] Val accuracy (prefix_most_freq_category_idx) = 0.2409
+
+[fe] Preparing feature matrices ...
+[fe] Total feature columns: 95
+[fe] Numeric features (88):
+     ['num_purchases_in_category', 'avg_rating_in_category', 'avg_helpful_vote_in_category', 'avg_item_avg_rating', 'first_review_time', 'last_review_time', 'All_Beauty', 'Amazon_Fashion', 'Appliances', 'Arts_Crafts_and_Sewing', 'Automotive', 'Baby_Products', 'Beauty_and_Personal_Care', 'Books', 'CDs_and_Vinyl', 'Cell_Phones_and_Accessories', 'Clothing_Shoes_and_Jewelry', 'Digital_Music', 'Electronics', 'Gift_Cards', 'Grocery_and_Gourmet_Food', 'Handmade_Products', 'Health_and_Household', 'Health_and_Personal_Care', 'Home_and_Kitchen', 'Industrial_and_Scientific', 'Kindle_Store', 'Magazine_Subscriptions', 'Movies_and_TV', 'Musical_Instruments', 'Office_Products', 'Patio_Lawn_and_Garden', 'Pet_Supplies', 'Software', 'Sports_and_Outdoors', 'Subscription_Boxes', 'Tools_and_Home_Improvement', 'Toys_and_Games', 'Unknown', 'Video_Games', 'total_purchases', 'distinct_categories', 'entropy', 'norm_entropy', 'importance', 'prefix_length', 'prefix_timespan', 'prefix_avg_rating', 'prefix_avg_helpful', 'prefix_avg_item_avg_rating', 'last_rating', 'last_helpful_votes', 'last_item_avg_rating', 'last_verified', 'prefix_cat_count_Unknown', 'prefix_cat_count_All_Beauty', 'prefix_cat_count_Toys_and_Games', 'prefix_cat_count_Cell_Phones_and_Accessories', 'prefix_cat_count_Industrial_and_Scientific', 'prefix_cat_count_Gift_Cards', 'prefix_cat_count_Musical_Instruments', 'prefix_cat_count_Electronics', 'prefix_cat_count_Handmade_Products', 'prefix_cat_count_Arts_Crafts_and_Sewing', 'prefix_cat_count_Baby_Products', 'prefix_cat_count_Health_and_Household', 'prefix_cat_count_Office_Products', 'prefix_cat_count_Digital_Music', 'prefix_cat_count_Grocery_and_Gourmet_Food', 'prefix_cat_count_Sports_and_Outdoors', 'prefix_cat_count_Home_and_Kitchen', 'prefix_cat_count_Subscription_Boxes', 'prefix_cat_count_Tools_and_Home_Improvement', 'prefix_cat_count_Pet_Supplies', 'prefix_cat_count_Video_Games', 'prefix_cat_count_Kindle_Store', 'prefix_cat_count_Clothing_Shoes_and_Jewelry', 'prefix_cat_count_Patio_Lawn_and_Garden', 'prefix_cat_count_Books', 'prefix_cat_count_Automotive', 'prefix_cat_count_CDs_and_Vinyl', 'prefix_cat_count_Beauty_and_Personal_Care', 'prefix_cat_count_Amazon_Fashion', 'prefix_cat_count_Magazine_Subscriptions', 'prefix_cat_count_Software', 'prefix_cat_count_Health_and_Personal_Care', 'prefix_cat_count_Appliances', 'prefix_cat_count_Movies_and_TV']
+[fe] Categorical idx features (7):
+     ['last_category_idx', 'last_1_category_idx', 'last_2_category_idx', 'last_3_category_idx', 'last_4_category_idx', 'last_5_category_idx', 'prefix_most_freq_category_idx']
+
+
+================ MODEL: random_forest ================
+[random_forest] Training...
+[random_forest] Training done.
+[random_forest:train] Evaluating on train (n=300,000) ...
+[random_forest:train] Accuracy = 0.3911
+[random_forest:train] Top-3 accuracy = 0.6880
+[random_forest:val] Evaluating on val (n=100,000) ...
+[random_forest:val] Accuracy = 0.2688
+[random_forest:val] Top-3 accuracy = 0.5205
+[random_forest:test] Evaluating on test (n=100,000) ...
+[random_forest:test] Accuracy = 0.2729
+[random_forest:test] Top-3 accuracy = 0.5220
+
+[random_forest] Summary:
+  Train acc: 0.3911
+  Val   acc: 0.2688
+  Test  acc: 0.2729
+  Val   top-3: 0.5205
+  Test  top-3: 0.5220
+
+
+================ BEST MODEL (by val acc) ================
+Best model: random_forest
+  Val acc   = 0.2688
+  Test acc  = 0.2729
+  Val top-3 = 0.5205
+  Test top-3 = 0.5220
+
+[report:test] Classification report for BEST model on TEST split:
+              precision    recall  f1-score   support
+
+           0     0.2055    0.2306    0.2173     10929
+           1     0.0000    0.0000    0.0000       106
+           2     0.4356    0.0353    0.0653      2776
+           3     0.2000    0.0011    0.0021      2781
+           4     0.0000    0.0000    0.0000      1039
+           5     0.0000    0.0000    0.0000        31
+           6     0.0000    0.0000    0.0000       549
+           7     0.2395    0.3299    0.2775      6962
+           8     0.0000    0.0000    0.0000        97
+           9     0.5133    0.0411    0.0761      1873
+          10     0.0000    0.0000    0.0000       913
+          11     0.2139    0.0165    0.0306      4861
+          12     0.0000    0.0000    0.0000      2341
+          13     0.0000    0.0000    0.0000        28
+          14     0.2754    0.0298    0.0538      2818
+          15     0.3134    0.0280    0.0514      3177
+          16     0.2047    0.5743    0.3018     11489
+          17     0.0000    0.0000    0.0000         6
+          18     0.2166    0.1198    0.1542      5052
+          19     0.3490    0.0504    0.0881      3233
+          20     0.0000    0.0000    0.0000       622
+          21     0.5170    0.7955    0.6267      5859
+          22     0.2552    0.4487    0.3254     10294
+          23     0.1000    0.0003    0.0007      2987
+          24     0.4397    0.3870    0.4116      5936
+          25     0.2870    0.4013    0.3347      3536
+          26     0.6029    0.2503    0.3537       983
+          27     0.3782    0.0674    0.1145      4122
+          28     0.0000    0.0000    0.0000       421
+          29     0.0000    0.0000    0.0000        15
+          30     0.0000    0.0000    0.0000       681
+          31     0.0000    0.0000    0.0000       105
+          32     0.0000    0.0000    0.0000       341
+          33     0.4025    0.3806    0.3913      3037
+
+    accuracy                         0.2729    100000
+   macro avg     0.1809    0.1232    0.1140    100000
+weighted avg     0.2698    0.2729    0.2229    100000
+
+
+All done.
