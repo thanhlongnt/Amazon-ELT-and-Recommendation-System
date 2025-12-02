@@ -1,7 +1,3 @@
-This document outlines a **four-stage data processing pipeline** designed to analyze Amazon review data, identify important users, and construct a temporal dataset for predicting a user's next purchase category.
-
----
-
 ## 🚀 Pipeline Summary: Amazon Review Data Processing
 
 The pipeline transforms raw, compressed Amazon review and metadata files for various categories into a cleaned, feature-engineered dataset suitable for sequence modeling and predictive analytics.
