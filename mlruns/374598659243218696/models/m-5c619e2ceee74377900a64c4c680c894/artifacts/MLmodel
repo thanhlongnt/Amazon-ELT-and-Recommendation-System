@@ -1,0 +1,23 @@
+artifact_path: /Users/thanhlongnt/Code/UCSD/CSE158/cse158_asgn2/mlruns/374598659243218696/models/m-5c619e2ceee74377900a64c4c680c894/artifacts
+flavors:
+  python_function:
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.sklearn
+    model_path: model.pkl
+    predict_fn: predict
+    python_version: 3.12.4
+  sklearn:
+    code: null
+    pickled_model: model.pkl
+    serialization_format: cloudpickle
+    sklearn_version: 1.7.2
+    skops_trusted_types: null
+mlflow_version: 3.10.1
+model_id: m-5c619e2ceee74377900a64c4c680c894
+model_size_bytes: 364669
+model_uuid: m-5c619e2ceee74377900a64c4c680c894
+prompts: null
+run_id: 243eb2634c3949c78617047181c7dcd3
+utc_time_created: '2026-03-06 21:20:30.519159'

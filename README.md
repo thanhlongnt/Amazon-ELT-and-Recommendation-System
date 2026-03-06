@@ -97,6 +97,39 @@ python -m amazon_next_category.models.tree_models
 python scripts/explore_data.py --n 5
 ```
 
+### Experiment tracking with MLflow
+
+Every model training run is automatically logged to MLflow (params, metrics, and model artifacts).
+
+**View past runs (CLI):**
+```bash
+mlflow runs list --experiment-name "amazon-next-category/logistic-regression"
+mlflow runs list --experiment-name "amazon-next-category/gradient-boosting"
+mlflow runs list --experiment-name "amazon-next-category/tree-models"
+```
+
+**Launch the interactive UI:**
+```bash
+mlflow ui        # opens http://localhost:5000
+```
+
+The UI lets you compare runs side-by-side, filter by metric, and download artifacts.
+
+**Reload a saved model:**
+```python
+import mlflow.sklearn
+model = mlflow.sklearn.load_model("mlruns/<experiment_id>/<run_id>/artifacts/model")
+predictions = model.predict(X)
+```
+Run IDs are shown in `mlflow ui` or via `mlflow runs list`.
+
+**Use a remote tracking server** (optional):
+```bash
+export MLFLOW_TRACKING_URI=http://my-mlflow-server:5000
+python -m amazon_next_category.models.logistic_regression
+```
+Without this env var, runs are stored locally in `mlruns/`.
+
 ---
 
 ## Project Structure

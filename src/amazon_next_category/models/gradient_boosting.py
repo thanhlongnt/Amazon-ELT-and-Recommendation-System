@@ -13,12 +13,15 @@ from __future__ import annotations
 
 import logging
 
+import mlflow
+import mlflow.sklearn
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.metrics import accuracy_score, classification_report, top_k_accuracy_score
 
 from amazon_next_category.utils.config import RANDOM_SEED, TRAIN_SPLIT, VAL_SPLIT
+from amazon_next_category.utils.mlflow_utils import setup_experiment
 from amazon_next_category.utils.model_io import (
     list_shard_files,
     load_split_from_shards,
@@ -155,6 +158,7 @@ def evaluate_split(
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     np.random.seed(RANDOM_SEED)
+    setup_experiment("gradient-boosting")
 
     shard_files = list_shard_files(SHARD_DIR)
     logger.info("Found %d shard files.", len(shard_files))
@@ -180,118 +184,147 @@ def main() -> None:
         categorical_feature_indices,
     ) = prepare_features_for_histgbm(df_train, df_val, df_test)
 
-    sample_weight_train = None
-    if USE_CLASS_WEIGHTS:
-        logger.info("Computing class-based sample weights...")
-        sample_weight_train = compute_class_sample_weights(y_train)
-
-    # Hyperparameter tuning
-    rng2 = np.random.RandomState(RANDOM_SEED + 123)
-    search_space = {
-        "learning_rate": [0.05, 0.1, 0.2],
-        "max_leaf_nodes": [31, 63, 127],
-        "min_samples_leaf": [20, 50, 100],
-        "l2_regularization": [0.0, 0.1, 1.0, 10.0],
-    }
-
-    if TUNING_N_TRIALS > 0:
-        n_sub = min(TUNING_TRAIN_SUBSET, len(y_train))
-        idx_sub = rng2.choice(len(y_train), size=n_sub, replace=False)
-        X_sub, y_sub = X_train[idx_sub], y_train[idx_sub]
-        sw_sub = sample_weight_train[idx_sub] if sample_weight_train is not None else None
-
-        logger.info("Starting random search: %d trials on %d rows...", TUNING_N_TRIALS, n_sub)
-        best_val_acc = -np.inf
-        best_params = None
-        trial_results = []
-
-        for trial in range(TUNING_N_TRIALS):
-            params = {
-                "learning_rate": float(rng2.choice(search_space["learning_rate"])),
-                "max_leaf_nodes": int(rng2.choice(search_space["max_leaf_nodes"])),
-                "min_samples_leaf": int(rng2.choice(search_space["min_samples_leaf"])),
-                "l2_regularization": float(rng2.choice(search_space["l2_regularization"])),
+    with mlflow.start_run(run_name="gradient_boosting"):
+        mlflow.log_params(
+            {
+                "tuning_n_trials": TUNING_N_TRIALS,
+                "tuning_train_subset": TUNING_TRAIN_SUBSET,
+                "n_ensemble": N_ENSEMBLE,
+                "use_class_weights": USE_CLASS_WEIGHTS,
+                "max_train_rows": MAX_TRAIN_ROWS,
+                "random_seed": RANDOM_SEED,
             }
+        )
+
+        sample_weight_train = None
+        if USE_CLASS_WEIGHTS:
+            logger.info("Computing class-based sample weights...")
+            sample_weight_train = compute_class_sample_weights(y_train)
+
+        # Hyperparameter tuning
+        rng2 = np.random.RandomState(RANDOM_SEED + 123)
+        search_space = {
+            "learning_rate": [0.05, 0.1, 0.2],
+            "max_leaf_nodes": [31, 63, 127],
+            "min_samples_leaf": [20, 50, 100],
+            "l2_regularization": [0.0, 0.1, 1.0, 10.0],
+        }
+
+        if TUNING_N_TRIALS > 0:
+            n_sub = min(TUNING_TRAIN_SUBSET, len(y_train))
+            idx_sub = rng2.choice(len(y_train), size=n_sub, replace=False)
+            X_sub, y_sub = X_train[idx_sub], y_train[idx_sub]
+            sw_sub = sample_weight_train[idx_sub] if sample_weight_train is not None else None
+
+            logger.info("Starting random search: %d trials on %d rows...", TUNING_N_TRIALS, n_sub)
+            best_val_acc = -np.inf
+            best_params = None
+            trial_results = []
+
+            for trial in range(TUNING_N_TRIALS):
+                params = {
+                    "learning_rate": float(rng2.choice(search_space["learning_rate"])),
+                    "max_leaf_nodes": int(rng2.choice(search_space["max_leaf_nodes"])),
+                    "min_samples_leaf": int(rng2.choice(search_space["min_samples_leaf"])),
+                    "l2_regularization": float(rng2.choice(search_space["l2_regularization"])),
+                }
+                clf = HistGradientBoostingClassifier(
+                    loss="log_loss",
+                    learning_rate=params["learning_rate"],
+                    max_iter=300,
+                    max_leaf_nodes=params["max_leaf_nodes"],
+                    min_samples_leaf=params["min_samples_leaf"],
+                    l2_regularization=params["l2_regularization"],
+                    max_bins=255,
+                    early_stopping=True,
+                    validation_fraction=0.1,
+                    n_iter_no_change=20,
+                    random_state=RANDOM_SEED + trial,
+                    categorical_features=categorical_feature_indices or None,
+                    verbose=1,
+                )
+                with mlflow.start_run(run_name=f"trial_{trial:02d}", nested=True):
+                    mlflow.log_params(params)
+                    if sw_sub is not None:
+                        clf.fit(X_sub, y_sub, sample_weight=sw_sub)
+                    else:
+                        clf.fit(X_sub, y_sub)
+
+                    val_acc = accuracy_score(y_val, clf.predict(X_val))
+                    mlflow.log_metric("val_acc", val_acc)
+
+                logger.info(
+                    "Trial %d/%d: val_acc=%.4f, params=%s",
+                    trial + 1,
+                    TUNING_N_TRIALS,
+                    val_acc,
+                    params,
+                )
+                trial_results.append((val_acc, params))
+
+                if val_acc > best_val_acc:
+                    best_val_acc = val_acc
+                    best_params = params
+
+            for rank, (acc, p) in enumerate(
+                sorted(trial_results, key=lambda x: x[0], reverse=True), 1
+            ):
+                logger.info("  #%d: val_acc=%.4f, params=%s", rank, acc, p)
+            logger.info("Best val_acc=%.4f with params=%s", best_val_acc, best_params)
+        else:
+            best_params = {
+                "learning_rate": 0.1,
+                "max_leaf_nodes": 63,
+                "min_samples_leaf": 50,
+                "l2_regularization": 1.0,
+            }
+            logger.info("Skipping tuning; using default params: %s", best_params)
+
+        assert best_params is not None
+        mlflow.log_params({f"best_{k}": v for k, v in best_params.items()})
+
+        # Final ensemble
+        logger.info("Training final ensemble of %d model(s)...", N_ENSEMBLE)
+        ensemble_models = []
+        for i in range(N_ENSEMBLE):
+            seed = RANDOM_SEED + 1000 + i
+            logger.info("Training ensemble member %d/%d (seed=%d)...", i + 1, N_ENSEMBLE, seed)
             clf = HistGradientBoostingClassifier(
                 loss="log_loss",
-                learning_rate=params["learning_rate"],
-                max_iter=300,
-                max_leaf_nodes=params["max_leaf_nodes"],
-                min_samples_leaf=params["min_samples_leaf"],
-                l2_regularization=params["l2_regularization"],
+                learning_rate=best_params["learning_rate"],
+                max_iter=400,
+                max_leaf_nodes=best_params["max_leaf_nodes"],
+                min_samples_leaf=best_params["min_samples_leaf"],
+                l2_regularization=best_params["l2_regularization"],
                 max_bins=255,
                 early_stopping=True,
                 validation_fraction=0.1,
-                n_iter_no_change=20,
-                random_state=RANDOM_SEED + trial,
+                n_iter_no_change=30,
+                random_state=seed,
                 categorical_features=categorical_feature_indices or None,
                 verbose=1,
             )
-            if sw_sub is not None:
-                clf.fit(X_sub, y_sub, sample_weight=sw_sub)
+            if sample_weight_train is not None:
+                clf.fit(X_train, y_train, sample_weight=sample_weight_train)
             else:
-                clf.fit(X_sub, y_sub)
+                clf.fit(X_train, y_train)
+            ensemble_models.append(clf)
 
-            val_acc = accuracy_score(y_val, clf.predict(X_val))
-            logger.info(
-                "Trial %d/%d: val_acc=%.4f, params=%s", trial + 1, TUNING_N_TRIALS, val_acc, params
-            )
-            trial_results.append((val_acc, params))
+        y_train_pred, train_acc = evaluate_split("train", ensemble_models, X_train, y_train)
+        y_val_pred, val_acc = evaluate_split("val", ensemble_models, X_val, y_val)
+        y_test_pred, test_acc = evaluate_split("test", ensemble_models, X_test, y_test)
 
-            if val_acc > best_val_acc:
-                best_val_acc = val_acc
-                best_params = params
-
-        for rank, (acc, p) in enumerate(sorted(trial_results, key=lambda x: x[0], reverse=True), 1):
-            logger.info("  #%d: val_acc=%.4f, params=%s", rank, acc, p)
-        logger.info("Best val_acc=%.4f with params=%s", best_val_acc, best_params)
-    else:
-        best_params = {
-            "learning_rate": 0.1,
-            "max_leaf_nodes": 63,
-            "min_samples_leaf": 50,
-            "l2_regularization": 1.0,
-        }
-        logger.info("Skipping tuning; using default params: %s", best_params)
-
-    assert best_params is not None
-
-    # Final ensemble
-    logger.info("Training final ensemble of %d model(s)...", N_ENSEMBLE)
-    ensemble_models = []
-    for i in range(N_ENSEMBLE):
-        seed = RANDOM_SEED + 1000 + i
-        logger.info("Training ensemble member %d/%d (seed=%d)...", i + 1, N_ENSEMBLE, seed)
-        clf = HistGradientBoostingClassifier(
-            loss="log_loss",
-            learning_rate=best_params["learning_rate"],
-            max_iter=400,
-            max_leaf_nodes=best_params["max_leaf_nodes"],
-            min_samples_leaf=best_params["min_samples_leaf"],
-            l2_regularization=best_params["l2_regularization"],
-            max_bins=255,
-            early_stopping=True,
-            validation_fraction=0.1,
-            n_iter_no_change=30,
-            random_state=seed,
-            categorical_features=categorical_feature_indices or None,
-            verbose=1,
+        logger.info("Summary — train: %.4f, val: %.4f, test: %.4f", train_acc, val_acc, test_acc)
+        logger.info(
+            "Classification report (test):\n%s",
+            classification_report(y_test, y_test_pred, digits=4),
         )
-        if sample_weight_train is not None:
-            clf.fit(X_train, y_train, sample_weight=sample_weight_train)
-        else:
-            clf.fit(X_train, y_train)
-        ensemble_models.append(clf)
 
-    y_train_pred, train_acc = evaluate_split("train", ensemble_models, X_train, y_train)
-    y_val_pred, val_acc = evaluate_split("val", ensemble_models, X_val, y_val)
-    y_test_pred, test_acc = evaluate_split("test", ensemble_models, X_test, y_test)
-
-    logger.info("Summary — train: %.4f, val: %.4f, test: %.4f", train_acc, val_acc, test_acc)
-    logger.info(
-        "Classification report (test):\n%s",
-        classification_report(y_test, y_test_pred, digits=4),
-    )
+        mlflow.log_metrics(
+            {"train_acc": train_acc, "val_acc": val_acc, "test_acc": test_acc}
+        )
+        for i, clf_model in enumerate(ensemble_models):
+            mlflow.sklearn.log_model(clf_model, artifact_path=f"ensemble_member_{i}")
 
 
 if __name__ == "__main__":

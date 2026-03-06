@@ -18,6 +18,8 @@ import logging
 import os
 import shutil
 
+import mlflow
+import mlflow.sklearn
 import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
@@ -29,6 +31,7 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 import amazon_next_category.io.data_io as data_io
 from amazon_next_category.utils.config import MAX_TRAIN_ROWS, RANDOM_SEED, TRAIN_SPLIT, VAL_SPLIT
+from amazon_next_category.utils.mlflow_utils import setup_experiment
 from amazon_next_category.utils.model_io import (
     list_shard_files,
     load_split_from_shards,
@@ -171,6 +174,7 @@ def add_derived_features(df: pd.DataFrame) -> pd.DataFrame:
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     np.random.seed(RANDOM_SEED)
+    setup_experiment("logistic-regression")
 
     had_global_before = os.path.exists(GLOBAL_OUT_PATH)
     logger.info("Resyncing registry and ensuring global sequence dataset is local...")
@@ -240,32 +244,50 @@ def main() -> None:
     )
     model = Pipeline([("preprocessor", preprocessor), ("clf", clf)])
 
-    logger.info("Fitting logistic regression on train split...")
-    model.fit(X_train, y_train)
-    logger.info("Training complete.")
+    with mlflow.start_run(run_name="logistic_regression"):
+        mlflow.log_params(
+            {
+                "solver": "lbfgs",
+                "max_iter": 400,
+                "multi_class": "multinomial",
+                "random_seed": RANDOM_SEED,
+                "max_train_rows": MAX_TRAIN_ROWS,
+                "n_features": len(feature_cols),
+                "n_cat_features": len(cat_feature_cols),
+            }
+        )
 
-    def evaluate_split(name: str, X: pd.DataFrame, y_true: np.ndarray) -> float:
-        y_pred = model.predict(X)
-        acc = accuracy_score(y_true, y_pred)
-        logger.info("Accuracy (%s): %.4f", name, acc)
-        try:
-            y_proba = model.predict_proba(X)
-            top3 = top_k_accuracy_score(y_true, y_proba, k=3)
-            logger.info("Top-3 accuracy (%s): %.4f", name, top3)
-        except Exception as e:
-            logger.warning("Could not compute top-3 for %s: %s", name, e)
-        return acc
+        logger.info("Fitting logistic regression on train split...")
+        model.fit(X_train, y_train)
+        logger.info("Training complete.")
 
-    train_acc = evaluate_split("train", X_train, y_train.to_numpy())
-    val_acc = evaluate_split("val", X_val, y_val.to_numpy())
-    test_acc = evaluate_split("test", X_test, y_test.to_numpy())
+        def evaluate_split(name: str, X: pd.DataFrame, y_true: np.ndarray) -> float:
+            y_pred = model.predict(X)
+            acc = accuracy_score(y_true, y_pred)
+            logger.info("Accuracy (%s): %.4f", name, acc)
+            mlflow.log_metric(f"{name}_acc", acc)
+            try:
+                y_proba = model.predict_proba(X)
+                top3 = top_k_accuracy_score(y_true, y_proba, k=3)
+                logger.info("Top-3 accuracy (%s): %.4f", name, top3)
+                mlflow.log_metric(f"{name}_top3", top3)
+            except Exception as e:
+                logger.warning("Could not compute top-3 for %s: %s", name, e)
+            return acc
 
-    logger.info("Summary — train: %.4f, val: %.4f, test: %.4f", train_acc, val_acc, test_acc)
+        train_acc = evaluate_split("train", X_train, y_train.to_numpy())
+        val_acc = evaluate_split("val", X_val, y_val.to_numpy())
+        test_acc = evaluate_split("test", X_test, y_test.to_numpy())
 
-    y_test_pred = model.predict(X_test)
-    logger.info(
-        "Classification report (test):\n%s", classification_report(y_test, y_test_pred, digits=4)
-    )
+        logger.info("Summary — train: %.4f, val: %.4f, test: %.4f", train_acc, val_acc, test_acc)
+
+        y_test_pred = model.predict(X_test)
+        logger.info(
+            "Classification report (test):\n%s",
+            classification_report(y_test, y_test_pred, digits=4),
+        )
+
+        mlflow.sklearn.log_model(model, artifact_path="model")
 
 
 if __name__ == "__main__":

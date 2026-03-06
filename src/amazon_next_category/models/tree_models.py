@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import logging
 
+import mlflow
+import mlflow.sklearn
 import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
@@ -24,6 +26,7 @@ from sklearn.svm import LinearSVC
 from sklearn.tree import DecisionTreeClassifier
 
 from amazon_next_category.utils.config import RANDOM_SEED, TRAIN_SPLIT, VAL_SPLIT
+from amazon_next_category.utils.mlflow_utils import setup_experiment
 from amazon_next_category.utils.model_io import (
     list_shard_files,
     load_split_from_shards,
@@ -115,6 +118,7 @@ def evaluate_model(
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     np.random.seed(RANDOM_SEED)
+    setup_experiment("tree-models")
 
     shard_files = list_shard_files(SHARD_DIR)
     logger.info("Found %d shard files.", len(shard_files))
@@ -198,13 +202,40 @@ def main() -> None:
         ),
     }
 
-    all_metrics: dict = {}
-    for name, model in models.items():
-        metrics = evaluate_model(name, model, X_train, y_train, X_val, y_val, X_test, y_test)
-        all_metrics[name] = metrics
+    model_params = {
+        "linear_svm": {"C": 1.0, "class_weight": "balanced", "max_iter": 5000},
+        "decision_tree": {"max_depth": 20, "min_samples_leaf": 50},
+        "random_forest": {"n_estimators": 100, "max_depth": 25, "min_samples_leaf": 20},
+    }
 
-    best_name = max(all_metrics, key=lambda n: all_metrics[n]["val_acc"])
-    best_metrics = all_metrics[best_name]
+    all_metrics: dict = {}
+    with mlflow.start_run(run_name="tree_models"):
+        for name, model in models.items():
+            with mlflow.start_run(run_name=name, nested=True):
+                mlflow.log_params(model_params.get(name, {}))
+                metrics = evaluate_model(
+                    name, model, X_train, y_train, X_val, y_val, X_test, y_test
+                )
+                mlflow.log_metrics(
+                    {
+                        "train_acc": metrics["train_acc"],
+                        "val_acc": metrics["val_acc"],
+                        "test_acc": metrics["test_acc"],
+                    }
+                )
+                if metrics["val_top3"] is not None:
+                    mlflow.log_metric("val_top3", metrics["val_top3"])
+                if metrics["test_top3"] is not None:
+                    mlflow.log_metric("test_top3", metrics["test_top3"])
+                mlflow.sklearn.log_model(model, artifact_path="model")
+            all_metrics[name] = metrics
+
+        best_name = max(all_metrics, key=lambda n: all_metrics[n]["val_acc"])
+        best_metrics = all_metrics[best_name]
+        mlflow.set_tag("best_model", best_name)
+        mlflow.log_metric("best_val_acc", best_metrics["val_acc"])
+        mlflow.log_metric("best_test_acc", best_metrics["test_acc"])
+
     logger.info("=== BEST MODEL (by val acc): %s ===", best_name)
     logger.info("  val_acc=%.4f, test_acc=%.4f", best_metrics["val_acc"], best_metrics["test_acc"])
     logger.info(

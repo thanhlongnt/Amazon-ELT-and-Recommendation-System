@@ -1,0 +1,10 @@
+artifact_location: /Users/thanhlongnt/Code/UCSD/CSE158/cse158_asgn2/mlruns/374598659243218696/models/m-5c619e2ceee74377900a64c4c680c894/artifacts
+creation_timestamp: 1772832030511
+experiment_id: '374598659243218696'
+last_updated_timestamp: 1772832032869
+model_id: m-5c619e2ceee74377900a64c4c680c894
+model_type: null
+name: model
+source_run_id: 243eb2634c3949c78617047181c7dcd3
+status: 2
+status_message: null

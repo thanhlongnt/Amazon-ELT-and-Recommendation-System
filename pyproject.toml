@@ -18,6 +18,7 @@ dependencies = [
     "matplotlib>=3.10.7",
     "requests>=2.32.5",
     "tqdm>=4.67.1",
+    "mlflow>=2.13",
 ]
 
 [project.optional-dependencies]
