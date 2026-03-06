@@ -15,7 +15,6 @@ import yaml
 
 import amazon_next_category.io.data_io as data_io
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -45,17 +44,20 @@ class TestLoadRegistry:
         reg_path = _write_registry(tmp_path, registry)
 
         # Patch module-level CONFIG_PATH and reset _LOADED
-        with patch.object(data_io, "CONFIG_PATH", reg_path), patch.object(
-            data_io, "_LOADED", False
-        ), patch.object(data_io, "_DATA_REGISTRY", {}):
+        with (
+            patch.object(data_io, "CONFIG_PATH", reg_path),
+            patch.object(data_io, "_LOADED", False),
+            patch.object(data_io, "_DATA_REGISTRY", {}),
+        ):
             data_io._load_registry()
             assert "raw" in data_io._DATA_REGISTRY
             assert "all_categories.txt" in data_io._DATA_REGISTRY["raw"]
 
     def test_raises_when_missing(self, tmp_path: Path) -> None:
         non_existent = tmp_path / "configs" / "missing.yaml"
-        with patch.object(data_io, "CONFIG_PATH", non_existent), patch.object(
-            data_io, "_LOADED", False
+        with (
+            patch.object(data_io, "CONFIG_PATH", non_existent),
+            patch.object(data_io, "_LOADED", False),
         ):
             with pytest.raises(FileNotFoundError, match="data_registry.yaml not found"):
                 data_io._load_registry()
@@ -69,9 +71,11 @@ class TestGetEntry:
         }
         reg_path = _write_registry(tmp_path, registry)
 
-        with patch.object(data_io, "CONFIG_PATH", reg_path), patch.object(
-            data_io, "_LOADED", False
-        ), patch.object(data_io, "_DATA_REGISTRY", {}):
+        with (
+            patch.object(data_io, "CONFIG_PATH", reg_path),
+            patch.object(data_io, "_LOADED", False),
+            patch.object(data_io, "_DATA_REGISTRY", {}),
+        ):
             entry = data_io.get_entry("raw", "cats")
             assert entry["local_path"] == "data/raw/all_categories.txt"
 
@@ -79,9 +83,11 @@ class TestGetEntry:
         registry = {"raw": {}, "processed": {}}
         reg_path = _write_registry(tmp_path, registry)
 
-        with patch.object(data_io, "CONFIG_PATH", reg_path), patch.object(
-            data_io, "_LOADED", False
-        ), patch.object(data_io, "_DATA_REGISTRY", {}):
+        with (
+            patch.object(data_io, "CONFIG_PATH", reg_path),
+            patch.object(data_io, "_LOADED", False),
+            patch.object(data_io, "_DATA_REGISTRY", {}),
+        ):
             with pytest.raises(KeyError, match="No namespace"):
                 data_io.get_entry("nonexistent", "key")
 
@@ -89,9 +95,11 @@ class TestGetEntry:
         registry = {"raw": {}, "processed": {}}
         reg_path = _write_registry(tmp_path, registry)
 
-        with patch.object(data_io, "CONFIG_PATH", reg_path), patch.object(
-            data_io, "_LOADED", False
-        ), patch.object(data_io, "_DATA_REGISTRY", {}):
+        with (
+            patch.object(data_io, "CONFIG_PATH", reg_path),
+            patch.object(data_io, "_LOADED", False),
+            patch.object(data_io, "_DATA_REGISTRY", {}),
+        ):
             with pytest.raises(KeyError, match="No registry entry"):
                 data_io.get_entry("raw", "nonexistent")
 

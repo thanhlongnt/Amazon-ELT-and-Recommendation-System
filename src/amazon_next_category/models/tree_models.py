@@ -11,7 +11,6 @@ model by validation accuracy.
 from __future__ import annotations
 
 import logging
-import os
 
 import numpy as np
 import pandas as pd
@@ -25,6 +24,7 @@ from sklearn.svm import LinearSVC
 from sklearn.tree import DecisionTreeClassifier
 
 from amazon_next_category.utils.config import RANDOM_SEED, TRAIN_SPLIT, VAL_SPLIT
+from amazon_next_category.utils.model_io import list_shard_files, load_split_from_shards
 
 logger = logging.getLogger(__name__)
 
@@ -33,52 +33,6 @@ SHARD_DIR = "data/global/sequence_samples_by_shard"
 MAX_TRAIN_ROWS = 300_000
 MAX_VAL_ROWS = 100_000
 MAX_TEST_ROWS = 100_000
-
-
-# ---------------------------------------------------------------------------
-# Shard helpers
-# ---------------------------------------------------------------------------
-
-
-def list_shard_files(shard_dir: str) -> list[str]:
-    if not os.path.exists(shard_dir):
-        raise FileNotFoundError(
-            f"Shard directory '{shard_dir}' not found. Run create_sequences.py first."
-        )
-    shard_files = [
-        os.path.join(shard_dir, f)
-        for f in os.listdir(shard_dir)
-        if f.endswith(".parquet") and f.startswith("sequence_user_shard=")
-    ]
-    shard_files.sort()
-    if not shard_files:
-        raise RuntimeError(f"No shard files found under {shard_dir}.")
-    return shard_files
-
-
-def load_split_from_shards(files: list[str], max_rows: int, name: str) -> pd.DataFrame:
-    logger.info(
-        "Loading %s split from %d shards (max_rows=%s)...", name, len(files), max_rows
-    )
-    dfs = []
-    total = 0
-    for fpath in files:
-        df_shard = pd.read_parquet(fpath)
-        if max_rows is not None:
-            remaining = max_rows - total
-            if remaining <= 0:
-                break
-            if len(df_shard) > remaining:
-                df_shard = df_shard.sample(n=remaining, random_state=RANDOM_SEED)
-        dfs.append(df_shard)
-        total += len(df_shard)
-        if max_rows is not None and total >= max_rows:
-            break
-    if not dfs:
-        raise RuntimeError(f"No rows loaded for split '{name}'.")
-    df_out = pd.concat(dfs, ignore_index=True)
-    logger.info("Final %s size: %d rows", name, len(df_out))
-    return df_out
 
 
 # ---------------------------------------------------------------------------
@@ -170,7 +124,12 @@ def main() -> None:
     val_files = list(shard_files_arr[n_train : n_train + n_val])
     test_files = list(shard_files_arr[n_train + n_val :])
 
-    logger.info("Shard split — train: %d, val: %d, test: %d", len(train_files), len(val_files), len(test_files))
+    logger.info(
+        "Shard split — train: %d, val: %d, test: %d",
+        len(train_files),
+        len(val_files),
+        len(test_files),
+    )
 
     df_train = load_split_from_shards(train_files, MAX_TRAIN_ROWS, "train")
     df_val = load_split_from_shards(val_files, MAX_VAL_ROWS, "val")
@@ -209,7 +168,9 @@ def main() -> None:
 
     logger.info(
         "Features — total: %d, numeric: %d, categorical: %d",
-        len(feature_cols), len(numeric_feature_cols), len(cat_feature_cols),
+        len(feature_cols),
+        len(numeric_feature_cols),
+        len(cat_feature_cols),
     )
 
     X_train = df_train[feature_cols].copy()
@@ -220,49 +181,70 @@ def main() -> None:
     y_test = df_test[label_col].copy()
 
     # Preprocessors
-    linear_numeric = Pipeline([
-        ("imputer", SimpleImputer(strategy="median")),
-        ("scaler", StandardScaler(with_mean=False)),
-    ])
-    linear_categorical = Pipeline([
-        ("imputer", SimpleImputer(strategy="most_frequent")),
-        ("onehot", OneHotEncoder(handle_unknown="ignore")),
-    ])
-    linear_preprocessor = ColumnTransformer([
-        ("num", linear_numeric, numeric_feature_cols),
-        ("cat", linear_categorical, cat_feature_cols),
-    ])
+    linear_numeric = Pipeline(
+        [
+            ("imputer", SimpleImputer(strategy="median")),
+            ("scaler", StandardScaler(with_mean=False)),
+        ]
+    )
+    linear_categorical = Pipeline(
+        [
+            ("imputer", SimpleImputer(strategy="most_frequent")),
+            ("onehot", OneHotEncoder(handle_unknown="ignore")),
+        ]
+    )
+    linear_preprocessor = ColumnTransformer(
+        [
+            ("num", linear_numeric, numeric_feature_cols),
+            ("cat", linear_categorical, cat_feature_cols),
+        ]
+    )
 
-    tree_preprocessor = ColumnTransformer([
-        ("num", SimpleImputer(strategy="median"), numeric_feature_cols),
-        ("cat", SimpleImputer(strategy="most_frequent"), cat_feature_cols),
-    ])
+    tree_preprocessor = ColumnTransformer(
+        [
+            ("num", SimpleImputer(strategy="median"), numeric_feature_cols),
+            ("cat", SimpleImputer(strategy="most_frequent"), cat_feature_cols),
+        ]
+    )
 
     models = {
-        "linear_svm": Pipeline([
-            ("preprocessor", linear_preprocessor),
-            ("clf", LinearSVC(C=1.0, class_weight="balanced", max_iter=5000, verbose=1)),
-        ]),
-        "decision_tree": Pipeline([
-            ("preprocessor", tree_preprocessor),
-            ("clf", DecisionTreeClassifier(
-                max_depth=20, min_samples_leaf=50, random_state=RANDOM_SEED
-            )),
-        ]),
-        "random_forest": Pipeline([
-            ("preprocessor", tree_preprocessor),
-            ("clf", RandomForestClassifier(
-                n_estimators=100, max_depth=25, min_samples_leaf=20,
-                n_jobs=-1, random_state=RANDOM_SEED,
-            )),
-        ]),
+        "linear_svm": Pipeline(
+            [
+                ("preprocessor", linear_preprocessor),
+                ("clf", LinearSVC(C=1.0, class_weight="balanced", max_iter=5000, verbose=1)),
+            ]
+        ),
+        "decision_tree": Pipeline(
+            [
+                ("preprocessor", tree_preprocessor),
+                (
+                    "clf",
+                    DecisionTreeClassifier(
+                        max_depth=20, min_samples_leaf=50, random_state=RANDOM_SEED
+                    ),
+                ),
+            ]
+        ),
+        "random_forest": Pipeline(
+            [
+                ("preprocessor", tree_preprocessor),
+                (
+                    "clf",
+                    RandomForestClassifier(
+                        n_estimators=100,
+                        max_depth=25,
+                        min_samples_leaf=20,
+                        n_jobs=-1,
+                        random_state=RANDOM_SEED,
+                    ),
+                ),
+            ]
+        ),
     }
 
     all_metrics: dict = {}
     for name, model in models.items():
-        metrics = evaluate_model(
-            name, model, X_train, y_train, X_val, y_val, X_test, y_test
-        )
+        metrics = evaluate_model(name, model, X_train, y_train, X_val, y_val, X_test, y_test)
         all_metrics[name] = metrics
 
     best_name = max(all_metrics, key=lambda n: all_metrics[n]["val_acc"])

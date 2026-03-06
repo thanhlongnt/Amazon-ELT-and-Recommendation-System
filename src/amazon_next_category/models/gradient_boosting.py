@@ -12,8 +12,6 @@ Design:
 from __future__ import annotations
 
 import logging
-import os
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -21,6 +19,7 @@ from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.metrics import accuracy_score, classification_report, top_k_accuracy_score
 
 from amazon_next_category.utils.config import RANDOM_SEED, TRAIN_SPLIT, VAL_SPLIT
+from amazon_next_category.utils.model_io import list_shard_files, load_split_from_shards
 
 logger = logging.getLogger(__name__)
 
@@ -34,52 +33,6 @@ TUNING_N_TRIALS = 10
 TUNING_TRAIN_SUBSET = 200_000
 N_ENSEMBLE = 2
 USE_CLASS_WEIGHTS = False
-
-
-# ---------------------------------------------------------------------------
-# Shard helpers
-# ---------------------------------------------------------------------------
-
-
-def list_shard_files(shard_dir: str) -> list[str]:
-    if not os.path.exists(shard_dir):
-        raise FileNotFoundError(
-            f"Shard directory '{shard_dir}' not found. Run create_sequences.py first."
-        )
-    shard_files = [
-        os.path.join(shard_dir, f)
-        for f in os.listdir(shard_dir)
-        if f.endswith(".parquet") and f.startswith("sequence_user_shard=")
-    ]
-    shard_files.sort()
-    if not shard_files:
-        raise RuntimeError(f"No shard files found under {shard_dir}.")
-    return shard_files
-
-
-def load_split_from_shards(files: list[str], max_rows: int, name: str) -> pd.DataFrame:
-    logger.info(
-        "Loading %s split from %d shards (max_rows=%s)...", name, len(files), max_rows
-    )
-    dfs = []
-    total = 0
-    for fpath in files:
-        df_shard = pd.read_parquet(fpath)
-        if max_rows is not None:
-            remaining = max_rows - total
-            if remaining <= 0:
-                break
-            if len(df_shard) > remaining:
-                df_shard = df_shard.sample(n=remaining, random_state=RANDOM_SEED)
-        dfs.append(df_shard)
-        total += len(df_shard)
-        if max_rows is not None and total >= max_rows:
-            break
-    if not dfs:
-        raise RuntimeError(f"No rows loaded for split '{name}'.")
-    df_out = pd.concat(dfs, ignore_index=True)
-    logger.info("Final %s size: %d rows", name, len(df_out))
-    return df_out
 
 
 # ---------------------------------------------------------------------------
@@ -125,7 +78,8 @@ def prepare_features_for_histgbm(
     feature_cols = [c for c in df_train.columns if c not in drop_cols + [label_col]]
 
     cat_feature_cols = [c for c in feature_cols if "category_idx" in c]
-    categorical_feature_indices = [feature_cols.index(c) for c in cat_feature_cols]
+    feature_col_positions = {c: i for i, c in enumerate(feature_cols)}
+    categorical_feature_indices = [feature_col_positions[c] for c in cat_feature_cols]
 
     def df_to_Xy(df: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
         X = df[feature_cols].to_numpy(dtype=np.float32)
@@ -138,7 +92,9 @@ def prepare_features_for_histgbm(
 
     logger.info(
         "Feature prep — %d features (%d categorical), X_train=%s",
-        len(feature_cols), len(cat_feature_cols), X_train.shape,
+        len(feature_cols),
+        len(cat_feature_cols),
+        X_train.shape,
     )
 
     return X_train, y_train, X_val, y_val, X_test, y_test, feature_cols, categorical_feature_indices
@@ -148,7 +104,7 @@ def compute_class_sample_weights(y: np.ndarray, power: float = 0.5) -> np.ndarra
     """Return per-sample weights ~ 1 / freq_c^power, normalised to mean=1."""
     classes, counts = np.unique(y, return_counts=True)
     freq = dict(zip(classes, counts))
-    weights_per_class = {cls: 1.0 / (cnt ** power) for cls, cnt in freq.items()}
+    weights_per_class = {cls: 1.0 / (cnt**power) for cls, cnt in freq.items()}
     w = np.array([weights_per_class[cls] for cls in y], dtype=np.float32)
     w *= float(len(w)) / w.sum()
     return w
@@ -209,7 +165,12 @@ def main() -> None:
     val_files = list(shard_files_arr[n_train : n_train + n_val])
     test_files = list(shard_files_arr[n_train + n_val :])
 
-    logger.info("Shard split — train: %d, val: %d, test: %d", len(train_files), len(val_files), len(test_files))
+    logger.info(
+        "Shard split — train: %d, val: %d, test: %d",
+        len(train_files),
+        len(val_files),
+        len(test_files),
+    )
 
     df_train = load_split_from_shards(train_files, MAX_TRAIN_ROWS, "train")
     df_val = load_split_from_shards(val_files, MAX_VAL_ROWS, "val")
@@ -238,8 +199,14 @@ def main() -> None:
         logger.info("Val accuracy (prefix_most_freq_category_idx): %.4f", acc_most)
 
     (
-        X_train, y_train, X_val, y_val, X_test, y_test,
-        feature_cols, categorical_feature_indices,
+        X_train,
+        y_train,
+        X_val,
+        y_val,
+        X_test,
+        y_test,
+        feature_cols,
+        categorical_feature_indices,
     ) = prepare_features_for_histgbm(df_train, df_val, df_test)
 
     sample_weight_train = None
@@ -295,7 +262,9 @@ def main() -> None:
                 clf.fit(X_sub, y_sub)
 
             val_acc = accuracy_score(y_val, clf.predict(X_val))
-            logger.info("Trial %d/%d: val_acc=%.4f, params=%s", trial + 1, TUNING_N_TRIALS, val_acc, params)
+            logger.info(
+                "Trial %d/%d: val_acc=%.4f, params=%s", trial + 1, TUNING_N_TRIALS, val_acc, params
+            )
             trial_results.append((val_acc, params))
 
             if val_acc > best_val_acc:
@@ -306,7 +275,12 @@ def main() -> None:
             logger.info("  #%d: val_acc=%.4f, params=%s", rank, acc, p)
         logger.info("Best val_acc=%.4f with params=%s", best_val_acc, best_params)
     else:
-        best_params = {"learning_rate": 0.1, "max_leaf_nodes": 63, "min_samples_leaf": 50, "l2_regularization": 1.0}
+        best_params = {
+            "learning_rate": 0.1,
+            "max_leaf_nodes": 63,
+            "min_samples_leaf": 50,
+            "l2_regularization": 1.0,
+        }
         logger.info("Skipping tuning; using default params: %s", best_params)
 
     assert best_params is not None

@@ -17,7 +17,6 @@ from __future__ import annotations
 import logging
 import os
 import shutil
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -30,6 +29,7 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 import amazon_next_category.io.data_io as data_io
 from amazon_next_category.utils.config import MAX_TRAIN_ROWS, RANDOM_SEED, TRAIN_SPLIT, VAL_SPLIT
+from amazon_next_category.utils.model_io import list_shard_files, load_split_from_shards
 
 logger = logging.getLogger(__name__)
 
@@ -42,71 +42,13 @@ MAX_TEST_ROWS = 200_000
 N_SHARDS_FOR_GLOBAL = 256
 
 
-# ---------------------------------------------------------------------------
-# Shard helpers
-# ---------------------------------------------------------------------------
-
-
-def list_shard_files(shard_dir: str) -> list[str]:
-    if not os.path.exists(shard_dir):
-        raise FileNotFoundError(
-            f"Shard directory '{shard_dir}' not found. "
-            "Run create_sequences.py first."
-        )
-    shard_files = [
-        os.path.join(shard_dir, f)
-        for f in os.listdir(shard_dir)
-        if f.endswith(".parquet") and f.startswith("sequence_user_shard=")
-    ]
-    shard_files.sort()
-    if not shard_files:
-        raise RuntimeError(f"No shard files found under {shard_dir}.")
-    return shard_files
-
-
-def load_split_from_shards(
-    files: list[str], max_rows: int, name: str
-) -> pd.DataFrame:
-    logger.info(
-        "Loading %s split from %d shard files (max_rows=%s)...",
-        name, len(files), max_rows,
-    )
-    dfs = []
-    total = 0
-
-    for fpath in files:
-        df_shard = pd.read_parquet(fpath)
-        if max_rows is not None:
-            remaining = max_rows - total
-            if remaining <= 0:
-                break
-            if len(df_shard) > remaining:
-                df_shard = df_shard.sample(n=remaining, random_state=RANDOM_SEED)
-        dfs.append(df_shard)
-        total += len(df_shard)
-        logger.debug(
-            "+%d rows from %s (cumulative: %d)", len(df_shard), os.path.basename(fpath), total
-        )
-        if max_rows is not None and total >= max_rows:
-            break
-
-    if not dfs:
-        raise RuntimeError(f"No rows loaded for split '{name}'.")
-    df_out = pd.concat(dfs, ignore_index=True)
-    logger.info("Final %s size: %d rows", name, len(df_out))
-    return df_out
-
-
-def shard_global_sequence_file(
-    global_path: str, shard_dir: str, n_shards: int = 256
-) -> None:
+def shard_global_sequence_file(global_path: str, shard_dir: str, n_shards: int = 256) -> None:
     """Shard the global sequence Parquet by user_id in a streaming fashion."""
-    from pandas.util import hash_pandas_object
-
     import gc
 
     import pyarrow as pa
     import pyarrow.parquet as pq
+    from pandas.util import hash_pandas_object
 
     logger.info("Sharding global file '%s' into %d shards...", global_path, n_shards)
 
@@ -129,9 +71,7 @@ def shard_global_sequence_file(
             for shard_id, shard_df in df.groupby("user_shard"):
                 shard_df = shard_df.drop(columns=["user_shard"])
                 shard_table = pa.Table.from_pandas(shard_df)
-                shard_path = os.path.join(
-                    shard_dir, f"sequence_user_shard={int(shard_id)}.parquet"
-                )
+                shard_path = os.path.join(shard_dir, f"sequence_user_shard={int(shard_id)}.parquet")
                 if shard_id not in writers:
                     writers[shard_id] = pq.ParquetWriter(shard_path, shard_table.schema)
                 writers[shard_id].write_table(shard_table)
@@ -257,7 +197,9 @@ def main() -> None:
 
     logger.info(
         "Shard split — train: %d, val: %d, test: %d",
-        len(train_files), len(val_files), len(test_files),
+        len(train_files),
+        len(val_files),
+        len(test_files),
     )
 
     df_train = load_split_from_shards(list(train_files), MAX_TRAIN_ROWS, "train")
@@ -301,7 +243,9 @@ def main() -> None:
 
     logger.info(
         "Features — total: %d, numeric: %d, categorical: %d",
-        len(feature_cols), len(numeric_feature_cols), len(cat_feature_cols),
+        len(feature_cols),
+        len(numeric_feature_cols),
+        len(cat_feature_cols),
     )
 
     X_train = df_train[feature_cols].copy()
@@ -311,18 +255,24 @@ def main() -> None:
     X_test = df_test[feature_cols].copy()
     y_test = df_test[label_col].copy()
 
-    numeric_transformer = Pipeline([
-        ("imputer", SimpleImputer(strategy="median")),
-        ("scaler", StandardScaler(with_mean=False)),
-    ])
-    categorical_transformer = Pipeline([
-        ("imputer", SimpleImputer(strategy="most_frequent")),
-        ("onehot", OneHotEncoder(handle_unknown="ignore")),
-    ])
-    preprocessor = ColumnTransformer([
-        ("num", numeric_transformer, numeric_feature_cols),
-        ("cat", categorical_transformer, cat_feature_cols),
-    ])
+    numeric_transformer = Pipeline(
+        [
+            ("imputer", SimpleImputer(strategy="median")),
+            ("scaler", StandardScaler(with_mean=False)),
+        ]
+    )
+    categorical_transformer = Pipeline(
+        [
+            ("imputer", SimpleImputer(strategy="most_frequent")),
+            ("onehot", OneHotEncoder(handle_unknown="ignore")),
+        ]
+    )
+    preprocessor = ColumnTransformer(
+        [
+            ("num", numeric_transformer, numeric_feature_cols),
+            ("cat", categorical_transformer, cat_feature_cols),
+        ]
+    )
 
     clf = LogisticRegression(
         multi_class="multinomial",
@@ -356,7 +306,9 @@ def main() -> None:
     logger.info("Summary — train: %.4f, val: %.4f, test: %.4f", train_acc, val_acc, test_acc)
 
     y_test_pred = model.predict(X_test)
-    logger.info("Classification report (test):\n%s", classification_report(y_test, y_test_pred, digits=4))
+    logger.info(
+        "Classification report (test):\n%s", classification_report(y_test, y_test_pred, digits=4)
+    )
 
 
 if __name__ == "__main__":

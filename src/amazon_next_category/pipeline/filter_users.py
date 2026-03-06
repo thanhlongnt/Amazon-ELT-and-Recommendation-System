@@ -7,11 +7,13 @@ and extracts "top users" satisfying configurable thresholds.
 from __future__ import annotations
 
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from scipy.stats import entropy as scipy_entropy
 from tqdm import tqdm
 
 import amazon_next_category.io.data_io as data_io
@@ -58,9 +60,14 @@ def load_all_user_counts() -> pd.DataFrame:
                 logger.warning("Could not fetch %s from Drive: %s", key, e)
 
     files = list(BASE_DIR.glob("*/user_counts_*.parquet"))
-    dfs = []
-    for f in tqdm(files, desc="Loading user_counts"):
-        dfs.append(pd.read_parquet(f))
+
+    def _read_one(path: Path) -> pd.DataFrame:
+        return pd.read_parquet(path)
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        dfs = list(
+            tqdm(executor.map(_read_one, files), total=len(files), desc="Loading user_counts")
+        )
     return pd.concat(dfs, ignore_index=True)
 
 
@@ -82,7 +89,8 @@ def compute_user_importance(df: pd.DataFrame) -> pd.DataFrame:
     """Add ``entropy``, ``norm_entropy``, and ``importance`` columns to *df*."""
     category_cols = [c for c in df.columns if c not in ["total_purchases", "distinct_categories"]]
 
-    df["entropy"] = df[category_cols].apply(lambda row: compute_entropy(row.values), axis=1)
+    counts = df[category_cols].values  # (n_users, n_categories)
+    df["entropy"] = scipy_entropy(counts.T + 1e-9)  # vectorized; adds epsilon to avoid log(0)
 
     max_entropy = np.log(len(category_cols))
     df["norm_entropy"] = df["entropy"] / max_entropy

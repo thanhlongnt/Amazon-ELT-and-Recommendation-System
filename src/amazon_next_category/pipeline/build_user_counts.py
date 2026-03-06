@@ -18,13 +18,16 @@ import argparse
 import gzip
 import json
 import logging
+import os
 from collections import Counter, defaultdict
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Dict, List
 
 import matplotlib.pyplot as plt
 import pandas as pd
 import requests
+from tqdm import tqdm
 
 from amazon_next_category.io.data_io import (
     ensure_local,
@@ -149,9 +152,7 @@ def process_review_file(gz_path: Path, category: str, max_helpful_bucket: int = 
             if obj.get("verified_purchase"):
                 n_verified += 1
 
-    logger.info(
-        "Reviews parsed: n_reviews=%d, n_users=%d", n_reviews, len(user_counts)
-    )
+    logger.info("Reviews parsed: n_reviews=%d, n_users=%d", n_reviews, len(user_counts))
     return {
         "user_counts": user_counts,
         "rating_hist": rating_hist,
@@ -251,9 +252,7 @@ def save_helpful_hist_plot(helpful_hist: Counter, out_path: Path, title: str) ->
     logger.info("Saved helpful hist: %s", out_path)
 
 
-def save_user_purchases_hist_plot(
-    user_counts: Dict[str, int], out_path: Path, title: str
-) -> None:
+def save_user_purchases_hist_plot(user_counts: Dict[str, int], out_path: Path, title: str) -> None:
     if not user_counts:
         logger.warning("No user counts to plot.")
         return
@@ -485,6 +484,34 @@ def process_category(
 
 
 # ---------------------------------------------------------------------------
+# Parallel worker
+# ---------------------------------------------------------------------------
+
+
+def _process_category_worker(args: tuple) -> None:
+    """Top-level worker so ProcessPoolExecutor can pickle it."""
+    (
+        category,
+        raw_dir,
+        processed_dir,
+        cleanup_raw,
+        cleanup_processed,
+        allow_download,
+        repo_root,
+    ) = args
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    process_category(
+        category,
+        raw_dir=raw_dir,
+        processed_dir=processed_dir,
+        cleanup_raw=cleanup_raw,
+        cleanup_processed=cleanup_processed,
+        allow_download=allow_download,
+        repo_root=repo_root,
+    )
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -541,19 +568,22 @@ def main() -> None:
         categories = read_all_categories_from_file(cat_file)
         logger.info("Loaded %d categories from %s", len(categories), cat_file)
 
-    for cat in categories:
-        try:
-            process_category(
-                cat,
-                raw_dir=raw_dir,
-                processed_dir=processed_dir,
-                cleanup_raw=cleanup_raw,
-                cleanup_processed=cleanup_processed,
-                allow_download=allow_download,
-                repo_root=REPO_ROOT,
-            )
-        except Exception as e:
-            logger.error("Error processing %s: %s", cat, e)
+    worker_args = [
+        (cat, raw_dir, processed_dir, cleanup_raw, cleanup_processed, allow_download, REPO_ROOT)
+        for cat in categories
+    ]
+    max_workers = min(os.cpu_count() or 4, len(categories))
+    logger.info("Processing %d categories with %d workers.", len(categories), max_workers)
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(_process_category_worker, wargs): wargs[0] for wargs in worker_args
+        }
+        for f in tqdm(as_completed(futures), total=len(categories), desc="Categories"):
+            cat = futures[f]
+            try:
+                f.result()
+            except Exception as e:
+                logger.error("Error processing %s: %s", cat, e)
 
 
 if __name__ == "__main__":

@@ -108,7 +108,7 @@ cse158_asgn2/
 │       ├── io/           # Data registry + Google Drive sync
 │       ├── pipeline/     # Steps 1–4: raw → sequence dataset
 │       ├── models/       # Logistic regression, HistGBM, tree models
-│       └── utils/        # config.py (constants)
+│       └── utils/        # config.py (constants), model_io.py (shared shard helpers)
 ├── scripts/              # CLI entry points
 ├── tests/                # Unit tests
 ├── notebooks/            # analysis.ipynb

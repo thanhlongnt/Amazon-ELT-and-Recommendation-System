@@ -19,6 +19,12 @@ from pydrive2.drive import GoogleDrive
 
 logger = logging.getLogger(__name__)
 
+
+def _q_escape(s: str) -> str:
+    """Escape single quotes in Google Drive API title queries."""
+    return s.replace("'", "\\'")
+
+
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
@@ -135,9 +141,7 @@ def ensure_local_path(rel_path: str) -> Path:
                 continue
             if entry.get("local_path") == rel_path:
                 return ensure_local(ns_name, key)
-    raise KeyError(
-        f"No registry entry found with local_path={rel_path} in {CONFIG_PATH}"
-    )
+    raise KeyError(f"No registry entry found with local_path={rel_path} in {CONFIG_PATH}")
 
 
 # ---------------------------------------------------------------------------
@@ -210,9 +214,7 @@ def upload_to_drive(local_path: Path) -> str:
 
     rel = local_path.relative_to(REPO_ROOT)
     if not rel.parts or rel.parts[0] != "data":
-        raise ValueError(
-            f"upload_to_drive only supports files under 'data/' (got: {rel})"
-        )
+        raise ValueError(f"upload_to_drive only supports files under 'data/' (got: {rel})")
 
     rel_under_data = rel.parts[1:]
     if not rel_under_data:
@@ -220,9 +222,6 @@ def upload_to_drive(local_path: Path) -> str:
 
     drive, root_id = _get_drive_and_root()
     parent_id = root_id
-
-    def _q_escape(s: str) -> str:
-        return s.replace("'", "\\'")
 
     for folder_name in rel_under_data[:-1]:
         folder_name_q = _q_escape(folder_name)
@@ -280,9 +279,6 @@ def remote_file_exists_by_rel_path(rel_path: str) -> bool:
     folder_parts, filename = parts[:-1], parts[-1]
     parent_id = root_id
 
-    def _q_escape(s: str) -> str:
-        return s.replace("'", "\\'")
-
     for folder_name in folder_parts:
         folder_name_q = _q_escape(folder_name)
         query = (
@@ -317,9 +313,6 @@ def delete_remote_by_rel_path(rel_path: str) -> None:
 
     folder_parts, filename = parts[:-1], parts[-1]
     parent_id = root_id
-
-    def _q_escape(s: str) -> str:
-        return s.replace("'", "\\'")
 
     for folder_name in folder_parts:
         folder_name_q = _q_escape(folder_name)

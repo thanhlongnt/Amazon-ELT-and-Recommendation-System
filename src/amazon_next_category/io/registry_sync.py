@@ -72,9 +72,7 @@ def walk_drive_tree(drive: GoogleDrive, root_folder_id: str) -> Dict[str, str]:
     relpath_to_id: Dict[str, str] = {}
 
     def _walk(folder_id: str, curr_rel: Path) -> None:
-        file_list = drive.ListFile(
-            {"q": f"'{folder_id}' in parents and trashed=false"}
-        ).GetList()
+        file_list = drive.ListFile({"q": f"'{folder_id}' in parents and trashed=false"}).GetList()
 
         for f in file_list:
             name = f["title"]

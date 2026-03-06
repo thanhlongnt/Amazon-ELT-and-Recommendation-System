@@ -14,8 +14,10 @@ import argparse
 import gzip
 import json
 import logging
+import os
 import time
 from collections import Counter, defaultdict
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -212,24 +214,6 @@ def load_item_meta(meta_gz: Path, category: str) -> Dict[str, Dict]:
 
 
 # ---------------------------------------------------------------------------
-# Gzip line counter
-# ---------------------------------------------------------------------------
-
-
-def count_gzip_lines(path: Path, category: str) -> int:
-    logger.info("Counting lines in %s for %s...", path, category)
-    start = time.time()
-    n = 0
-    with gzip.open(path, "rt", encoding="utf-8", errors="ignore") as f:
-        for _ in f:
-            n += 1
-    logger.info(
-        "%s: total_lines=%d (took %.1fs)", category, n, time.time() - start
-    )
-    return n
-
-
-# ---------------------------------------------------------------------------
 # Core streaming parser
 # ---------------------------------------------------------------------------
 
@@ -296,10 +280,7 @@ def parse_reviews_for_top_users(
                 continue
 
             product_id = (
-                obj.get("asin")
-                or obj.get("product_id")
-                or obj.get("item_id")
-                or obj.get("id")
+                obj.get("asin") or obj.get("product_id") or obj.get("item_id") or obj.get("id")
             )
             rating = obj.get("rating")
 
@@ -351,12 +332,20 @@ def parse_reviews_for_top_users(
                         eta_str = f"{int(eta_sec // 60)}m {int(eta_sec % 60)}s"
                     logger.info(
                         "%s: %d/%d lines (%.1f%%), kept=%d, ETA=%s",
-                        category, n_lines, total_lines, frac * 100, n_kept, eta_str,
+                        category,
+                        n_lines,
+                        total_lines,
+                        frac * 100,
+                        n_kept,
+                        eta_str,
                     )
                 else:
                     logger.info(
                         "%s: lines=%d, kept=%d, users=%d",
-                        category, n_lines, n_kept, len(seen_users),
+                        category,
+                        n_lines,
+                        n_kept,
+                        len(seen_users),
                     )
 
             try:
@@ -372,15 +361,23 @@ def parse_reviews_for_top_users(
     else:
         pd.DataFrame(
             columns=[
-                "user_id", "product_id", "unixReviewTime", "rating",
-                "helpful_votes", "helpful_votes_clipped", "verified_purchase",
-                "item_avg_rating", "item_categories",
+                "user_id",
+                "product_id",
+                "unixReviewTime",
+                "rating",
+                "helpful_votes",
+                "helpful_votes_clipped",
+                "verified_purchase",
+                "item_avg_rating",
+                "item_categories",
             ]
         ).to_parquet(out_reviews_parquet, index=False)
 
     logger.info(
         "Filtered reviews: rows=%d, users=%d, lines_seen=%d",
-        n_kept, len(seen_users), n_lines,
+        n_kept,
+        len(seen_users),
+        n_lines,
     )
     return rating_hist, helpful_hist, len(seen_users), n_kept
 
@@ -420,8 +417,12 @@ def process_category(
     helpful_png = cat_proc_dir / f"top_users_helpful_hist_{category}.png"
 
     expected_outputs = [
-        out_reviews_parquet, out_user_features, out_item_features,
-        out_stats_json, rating_png, helpful_png,
+        out_reviews_parquet,
+        out_user_features,
+        out_item_features,
+        out_stats_json,
+        rating_png,
+        helpful_png,
     ]
 
     # --- Lock ---
@@ -488,7 +489,6 @@ def process_category(
 
         if need_step1:
             ensure_raw_gzip_or_download(review_gz, review_url, allow_download, repo_root)
-            total_lines = count_gzip_lines(review_gz, category)
 
         need_meta = need_step1 or need_step3
         item_meta: Dict[str, Dict] = {}
@@ -518,15 +518,25 @@ def process_category(
             logger.info("Parsing review gz for top users (%s)...", category)
             try:
                 rating_hist, helpful_hist, n_users, n_reviews = parse_reviews_for_top_users(
-                    review_gz, top_users_set, item_meta, category,
-                    progress_interval, total_lines, out_reviews_parquet,
+                    review_gz,
+                    top_users_set,
+                    item_meta,
+                    category,
+                    progress_interval,
+                    total_lines,
+                    out_reviews_parquet,
                 )
             except EOFError:
                 logger.warning("Truncated review gz for %s; re-downloading.", category)
                 download_if_needed(review_url, review_gz, force=True)
                 rating_hist, helpful_hist, n_users, n_reviews = parse_reviews_for_top_users(
-                    review_gz, top_users_set, item_meta, category,
-                    progress_interval, total_lines, out_reviews_parquet,
+                    review_gz,
+                    top_users_set,
+                    item_meta,
+                    category,
+                    progress_interval,
+                    total_lines,
+                    out_reviews_parquet,
                 )
 
             stats_out = {
@@ -547,11 +557,13 @@ def process_category(
                     pd.DataFrame(columns=[col]).to_parquet(p, index=False)
             if need_step4:
                 save_rating_hist_plot(
-                    rating_hist, rating_png,
+                    rating_hist,
+                    rating_png,
                     title=f"Top users rating distribution ({category})",
                 )
                 save_helpful_hist_plot(
-                    helpful_hist, helpful_png,
+                    helpful_hist,
+                    helpful_png,
                     title=f"Top users helpful votes ({category})",
                 )
             if cleanup_raw:
@@ -608,11 +620,13 @@ def process_category(
                 )
                 .reset_index()
             )
+            _avg_map = {k: v.get("item_avg_rating") for k, v in item_meta.items()}
+            _cat_map = {k: v.get("item_categories") for k, v in item_meta.items()}
             item_agg["item_avg_rating_meta"] = item_agg["product_id"].map(
-                lambda a: item_meta.get(str(a), {}).get("item_avg_rating")
+                lambda a: _avg_map.get(str(a))
             )
             item_agg["item_categories_meta"] = item_agg["product_id"].map(
-                lambda a: item_meta.get(str(a), {}).get("item_categories")
+                lambda a: _cat_map.get(str(a))
             )
             item_agg.to_parquet(out_item_features, index=False)
             logger.info("Saved per-item features: %s", out_item_features)
@@ -620,19 +634,25 @@ def process_category(
         # Step 4: plots
         if not rating_png.exists():
             save_rating_hist_plot(
-                rating_hist, rating_png,
+                rating_hist,
+                rating_png,
                 title=f"Top users rating distribution ({category})",
             )
         if not helpful_png.exists():
             save_helpful_hist_plot(
-                helpful_hist, helpful_png,
+                helpful_hist,
+                helpful_png,
                 title=f"Top users helpful votes ({category})",
             )
 
         # Upload
         upload_targets = [
-            out_reviews_parquet, out_user_features, out_item_features,
-            out_stats_json, rating_png, helpful_png,
+            out_reviews_parquet,
+            out_user_features,
+            out_item_features,
+            out_stats_json,
+            rating_png,
+            helpful_png,
         ]
         logger.info("Uploading outputs for %s to Drive...", category)
         for p in upload_targets:
@@ -672,14 +692,46 @@ def process_category(
 
 
 # ---------------------------------------------------------------------------
+# Parallel worker
+# ---------------------------------------------------------------------------
+
+
+def _process_category_worker(args: tuple) -> None:
+    """Top-level worker so ProcessPoolExecutor can pickle it."""
+    (
+        category,
+        raw_dir,
+        processed_dir,
+        top_users_df,
+        top_users_set,
+        allow_download,
+        cleanup_raw,
+        cleanup_processed,
+        repo_root,
+        progress_interval,
+    ) = args
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    process_category(
+        category,
+        raw_dir=raw_dir,
+        processed_dir=processed_dir,
+        top_users_df=top_users_df,
+        top_users_set=top_users_set,
+        allow_download=allow_download,
+        cleanup_raw=cleanup_raw,
+        cleanup_processed=cleanup_processed,
+        repo_root=repo_root,
+        progress_interval=progress_interval,
+    )
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Extract top-user filtered features per category."
-    )
+    parser = argparse.ArgumentParser(description="Extract top-user filtered features per category.")
     parser.add_argument("--categories", nargs="*")
     parser.add_argument("--categories-file", type=str, default=None)
     parser.add_argument("--top-users", type=str, default=None)
@@ -741,23 +793,33 @@ def main() -> None:
         logger.info("Loaded %d categories from %s", len(categories), cat_file)
 
     total = len(categories)
-    for idx, cat in enumerate(categories, start=1):
-        logger.info("[%d/%d] Starting category: %s", idx, total, cat)
-        try:
-            process_category(
-                cat,
-                raw_dir=raw_dir,
-                processed_dir=processed_dir,
-                top_users_df=top_users_df,
-                top_users_set=top_users_set,
-                allow_download=allow_download,
-                cleanup_raw=cleanup_raw,
-                cleanup_processed=cleanup_processed,
-                repo_root=REPO_ROOT,
-                progress_interval=args.progress_interval,
-            )
-        except Exception as e:
-            logger.error("Error processing %s: %s", cat, e)
+    worker_args = [
+        (
+            cat,
+            raw_dir,
+            processed_dir,
+            top_users_df,
+            top_users_set,
+            allow_download,
+            cleanup_raw,
+            cleanup_processed,
+            REPO_ROOT,
+            args.progress_interval,
+        )
+        for cat in categories
+    ]
+    max_workers = min(os.cpu_count() or 4, total)
+    logger.info("Processing %d categories with %d workers.", total, max_workers)
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(_process_category_worker, wargs): wargs[0] for wargs in worker_args
+        }
+        for f in as_completed(futures):
+            cat = futures[f]
+            try:
+                f.result()
+            except Exception as e:
+                logger.error("Error processing %s: %s", cat, e)
 
 
 if __name__ == "__main__":

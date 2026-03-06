@@ -19,6 +19,7 @@ import logging
 import os
 import shutil
 from collections import Counter, defaultdict
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from typing import Dict, List, Optional
 
 import numpy as np
@@ -45,15 +46,9 @@ class DataLoader:
 
         for cat in categories:
             try:
-                data_io.ensure_local_path(
-                    f"data/processed/{cat}/top_user_reviews_{cat}.parquet"
-                )
-                data_io.ensure_local_path(
-                    f"data/processed/{cat}/top_user_features_{cat}.parquet"
-                )
-                data_io.ensure_local_path(
-                    f"data/processed/{cat}/top_item_features_{cat}.parquet"
-                )
+                data_io.ensure_local_path(f"data/processed/{cat}/top_user_reviews_{cat}.parquet")
+                data_io.ensure_local_path(f"data/processed/{cat}/top_user_features_{cat}.parquet")
+                data_io.ensure_local_path(f"data/processed/{cat}/top_item_features_{cat}.parquet")
                 successful.append(cat)
             except Exception:
                 logger.warning("Step-3 outputs for %s not fully available.", cat)
@@ -88,10 +83,9 @@ def shard_user_features(
     n_shards: int = N_SHARDS,
 ) -> None:
     """Write per-category user features into a hash-partitioned Parquet dataset."""
-    from pandas.util import hash_pandas_object
-
     import pyarrow as pa
     import pyarrow.parquet as pq
+    from pandas.util import hash_pandas_object
 
     os.makedirs(tmp_user_dir, exist_ok=True)
 
@@ -132,10 +126,9 @@ def shard_reviews_by_user(
     n_shards: int = N_SHARDS,
 ) -> None:
     """Write per-category reviews into a hash-partitioned Parquet dataset."""
-    from pandas.util import hash_pandas_object
-
     import pyarrow as pa
     import pyarrow.parquet as pq
+    from pandas.util import hash_pandas_object
 
     os.makedirs(tmp_dir, exist_ok=True)
 
@@ -318,12 +311,8 @@ def build_sequence_dataset_for_shard(
             feat: Dict = {}
             feat["user_id"] = user_id
 
-            if urow is not None:
-                for col in static_feature_cols:
-                    feat[col] = urow.get(col, np.nan)
-            else:
-                for col in static_feature_cols:
-                    feat[col] = np.nan
+            for col in static_feature_cols:
+                feat[col] = urow.get(col, np.nan) if urow is not None else np.nan
 
             feat["prefix_length"] = prefix_len
             feat["prefix_timespan"] = t - first_time if first_time is not None else 0
@@ -345,7 +334,11 @@ def build_sequence_dataset_for_shard(
 
             if not disable_prefix_cat_counts:
                 for cat_name, idx in category_items:
-                    key = "prefix_cat_count_Unknown" if cat_name == "Unknown" else f"prefix_cat_count_{cat_name}"
+                    key = (
+                        "prefix_cat_count_Unknown"
+                        if cat_name == "Unknown"
+                        else f"prefix_cat_count_{cat_name}"
+                    )
                     feat[key] = int(cat_counts[idx])
 
             feat["prefix_most_freq_category_idx"] = int(cat_counts.argmax())
@@ -403,6 +396,107 @@ class BaselineStats:
         logger.info("Baseline — global majority (%s): %.4f", majority_cat, majority_acc)
         logger.info("Baseline — per-user majority: %.4f", user_majority_acc)
         logger.info("Baseline — last-category: %.4f", last_cat_acc)
+
+
+# ---------------------------------------------------------------------------
+# Parallel shard worker
+# ---------------------------------------------------------------------------
+
+
+def _process_shard_worker(args: tuple) -> "BaselineStats":
+    """Process one review shard and return partial BaselineStats for aggregation."""
+    import gc
+    import logging
+    import os
+
+    import pandas as pd
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    worker_logger = logging.getLogger(__name__)
+
+    (
+        shard_dir,
+        per_shard_output_dir,
+        tmp_user_dir,
+        category_index,
+        n_latest,
+        min_prefix,
+        disable_prefix_cat_counts,
+        sample_every_k_prefix,
+        resume_phase2,
+        disable_baselines,
+    ) = args
+
+    shard_name = os.path.basename(shard_dir)
+    shard_output_path = os.path.join(per_shard_output_dir, f"sequence_{shard_name}.parquet")
+    partial_stats = BaselineStats()
+
+    if os.path.exists(shard_output_path) and resume_phase2:
+        pf = pq.ParquetFile(shard_output_path)
+        col_names = pf.schema.names
+        has_prefix_counts = any(c.startswith("prefix_cat_count_") for c in col_names)
+        if disable_prefix_cat_counts or has_prefix_counts:
+            if not disable_baselines:
+                existing_df = pf.read().to_pandas()
+                partial_stats.update_from_shard(existing_df)
+                del existing_df
+                gc.collect()
+            return partial_stats
+        worker_logger.info("Shard %s lacks prefix_cat_count_*; rebuilding.", shard_name)
+
+    rfiles = [os.path.join(shard_dir, f) for f in os.listdir(shard_dir) if f.endswith(".parquet")]
+    if not rfiles:
+        return partial_stats
+
+    shard_dfs = [pd.read_parquet(p) for p in rfiles]
+    shard_reviews = pd.concat(shard_dfs, ignore_index=True)
+    del shard_dfs
+    gc.collect()
+
+    user_shard_dir = os.path.join(tmp_user_dir, shard_name)
+    if os.path.exists(user_shard_dir):
+        ufiles = [
+            os.path.join(user_shard_dir, f)
+            for f in os.listdir(user_shard_dir)
+            if f.endswith(".parquet")
+        ]
+        if ufiles:
+            udfs = [pd.read_parquet(p) for p in ufiles]
+            shard_user_features_df = pd.concat(udfs, ignore_index=True)
+            del udfs
+            gc.collect()
+        else:
+            shard_user_features_df = pd.DataFrame(columns=["user_id"])
+    else:
+        shard_user_features_df = pd.DataFrame(columns=["user_id"])
+
+    seq_df_shard = build_sequence_dataset_for_shard(
+        reviews_df=shard_reviews,
+        user_features_df=shard_user_features_df,
+        category_index=category_index,
+        n_latest=n_latest,
+        min_prefix=min_prefix,
+        disable_prefix_cat_counts=disable_prefix_cat_counts,
+        sample_every_k_prefix=sample_every_k_prefix,
+    )
+    del shard_reviews, shard_user_features_df
+    gc.collect()
+
+    if seq_df_shard.empty:
+        return partial_stats
+
+    if not disable_baselines:
+        partial_stats.update_from_shard(seq_df_shard)
+
+    worker_logger.info("Shard %s: %d sequence samples.", shard_name, len(seq_df_shard))
+    table = pa.Table.from_pandas(seq_df_shard)
+    pq.write_table(table, shard_output_path)
+    del seq_df_shard, table
+    gc.collect()
+
+    return partial_stats
 
 
 # ---------------------------------------------------------------------------
@@ -470,9 +564,7 @@ def main() -> None:
     # Phase 0: shard user features
     if args.skip_user_sharding:
         if not os.path.exists(args.tmp_user_dir):
-            raise RuntimeError(
-                f"--skip-user-sharding set but {args.tmp_user_dir} does not exist."
-            )
+            raise RuntimeError(f"--skip-user-sharding set but {args.tmp_user_dir} does not exist.")
         logger.info("Skipping user sharding (reusing %s).", args.tmp_user_dir)
     else:
         if os.path.exists(args.tmp_user_dir):
@@ -486,9 +578,7 @@ def main() -> None:
     # Phase 1: shard reviews
     if args.skip_review_sharding:
         if not os.path.exists(args.tmp_dir):
-            raise RuntimeError(
-                f"--skip-review-sharding set but {args.tmp_dir} does not exist."
-            )
+            raise RuntimeError(f"--skip-review-sharding set but {args.tmp_dir} does not exist.")
         logger.info("Skipping review sharding (reusing %s).", args.tmp_dir)
     else:
         if os.path.exists(args.tmp_dir):
@@ -511,87 +601,37 @@ def main() -> None:
     os.makedirs(args.per_shard_output_dir, exist_ok=True)
     baseline_stats = BaselineStats()
 
-    logger.info("=== Phase 2: Building sequence samples per shard ===")
-    for shard_idx, shard_dir in enumerate(tqdm(shard_dirs, desc="Shards"), start=1):
-        shard_name = os.path.basename(shard_dir)
-        logger.info("Shard %d/%d: %s", shard_idx, num_shards, shard_name)
-
-        shard_output_path = os.path.join(
-            args.per_shard_output_dir, f"sequence_{shard_name}.parquet"
+    logger.info("=== Phase 2: Building sequence samples per shard (parallel) ===")
+    worker_args_list = [
+        (
+            shard_dir,
+            args.per_shard_output_dir,
+            args.tmp_user_dir,
+            category_index,
+            args.n_latest,
+            args.min_prefix,
+            args.disable_prefix_cat_counts,
+            args.sample_every_k_prefix,
+            args.resume_phase2,
+            args.disable_baselines,
         )
-
-        if os.path.exists(shard_output_path) and args.resume_phase2:
-            pf = pq.ParquetFile(shard_output_path)
-            col_names = pf.schema.names
-            has_prefix_counts = any(c.startswith("prefix_cat_count_") for c in col_names)
-
-            if args.disable_prefix_cat_counts or has_prefix_counts:
-                if not args.disable_baselines:
-                    existing_df = pf.read().to_pandas()
-                    baseline_stats.update_from_shard(existing_df)
-                    del existing_df
-                    gc.collect()
-                continue
-
-            logger.info("Shard %s lacks prefix_cat_count_*; rebuilding.", shard_name)
-
-        rfiles = [
-            os.path.join(shard_dir, f)
-            for f in os.listdir(shard_dir)
-            if f.endswith(".parquet")
-        ]
-        if not rfiles:
-            logger.info("No review files in shard %s; skipping.", shard_name)
-            continue
-
-        shard_dfs = [pd.read_parquet(p) for p in rfiles]
-        shard_reviews = pd.concat(shard_dfs, ignore_index=True)
-        del shard_dfs
-        gc.collect()
-
-        user_shard_dir = os.path.join(args.tmp_user_dir, shard_name)
-        if os.path.exists(user_shard_dir):
-            ufiles = [
-                os.path.join(user_shard_dir, f)
-                for f in os.listdir(user_shard_dir)
-                if f.endswith(".parquet")
-            ]
-            if ufiles:
-                udfs = [pd.read_parquet(p) for p in ufiles]
-                shard_user_features_df = pd.concat(udfs, ignore_index=True)
-                del udfs
-                gc.collect()
-            else:
-                shard_user_features_df = pd.DataFrame(columns=["user_id"])
-        else:
-            shard_user_features_df = pd.DataFrame(columns=["user_id"])
-
-        seq_df_shard = build_sequence_dataset_for_shard(
-            reviews_df=shard_reviews,
-            user_features_df=shard_user_features_df,
-            category_index=category_index,
-            n_latest=args.n_latest,
-            min_prefix=args.min_prefix,
-            disable_prefix_cat_counts=args.disable_prefix_cat_counts,
-            sample_every_k_prefix=args.sample_every_k_prefix,
-        )
-        del shard_reviews, shard_user_features_df
-        gc.collect()
-
-        if seq_df_shard.empty:
-            logger.info("No valid sequence samples for shard %s; skipping.", shard_name)
-            continue
-
-        logger.info("Shard %s: %d sequence samples.", shard_name, len(seq_df_shard))
-
-        if not args.disable_baselines:
-            baseline_stats.update_from_shard(seq_df_shard)
-
-        table = pa.Table.from_pandas(seq_df_shard)
-        pq.write_table(table, shard_output_path)
-        logger.info("Wrote shard output: %s", shard_output_path)
-        del seq_df_shard, table
-        gc.collect()
+        for shard_dir in shard_dirs
+    ]
+    max_workers = min(os.cpu_count() or 4, 16)
+    logger.info("Processing %d shards with up to %d workers.", num_shards, max_workers)
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(_process_shard_worker, wargs): wargs[0] for wargs in worker_args_list
+        }
+        for f in tqdm(as_completed(futures), total=num_shards, desc="Shards"):
+            partial_stats = f.result()  # re-raises exceptions from worker
+            if not args.disable_baselines:
+                baseline_stats.global_counts.update(partial_stats.global_counts)
+                for uid, counts in partial_stats.user_label_counts.items():
+                    for label_idx, cnt in counts.items():
+                        baseline_stats.user_label_counts[uid][label_idx] += cnt
+                baseline_stats.total_samples += partial_stats.total_samples
+                baseline_stats.last_equal_correct += partial_stats.last_equal_correct
 
     # Combine
     shard_files = sorted(
