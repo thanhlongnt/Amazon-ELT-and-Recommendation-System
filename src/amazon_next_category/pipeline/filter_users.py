@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
+import amazon_next_category.io.data_io as data_io
 from amazon_next_category.utils.config import (
     IMPORTANCE_PERCENTILE,
     MIN_DISTINCT_CATEGORIES,
@@ -43,7 +44,19 @@ def compute_entropy(counts: np.ndarray) -> float:
 
 
 def load_all_user_counts() -> pd.DataFrame:
-    """Load all per-category ``user_counts_*.parquet`` files and concatenate."""
+    """Load all per-category ``user_counts_*.parquet`` files and concatenate.
+
+    Downloads any missing files from Drive via the data registry before globbing.
+    """
+    data_io._load_registry()
+    processed_ns = data_io._DATA_REGISTRY.get("processed", {})
+    for key in processed_ns:
+        if key.startswith("user_counts_"):
+            try:
+                data_io.ensure_local("processed", key)
+            except Exception as e:
+                logger.warning("Could not fetch %s from Drive: %s", key, e)
+
     files = list(BASE_DIR.glob("*/user_counts_*.parquet"))
     dfs = []
     for f in tqdm(files, desc="Loading user_counts"):

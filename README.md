@@ -57,6 +57,19 @@ pip install -r requirements-dev.txt
 ### Run the full pipeline
 
 ```bash
+# Run all stages end-to-end, then load the dataset
+python scripts/run_pipeline.py --run-all
+
+# Limit to a subset of categories
+python scripts/run_pipeline.py --run-all --categories Electronics Toys_and_Games
+
+# Just load the final dataset (skips pipeline stages)
+python scripts/run_pipeline.py
+```
+
+Or run each stage individually:
+
+```bash
 # Step 1 – build per-category user counts
 python -m amazon_next_category.pipeline.build_user_counts
 
@@ -68,9 +81,6 @@ python -m amazon_next_category.pipeline.extract_features
 
 # Step 4 – create sequence training samples
 python -m amazon_next_category.pipeline.create_sequences
-
-# Load the dataset (CLI entry point)
-run-pipeline          # or: python scripts/run_pipeline.py
 ```
 
 ### Train a model
