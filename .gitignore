@@ -30,3 +30,6 @@ htmlcov/
 # Environment
 .env
 .DS_Store
+
+# MLflow
+mlruns/
