@@ -1,40 +1,43 @@
-#!/usr/bin/env python
-"""
-Scan local data/ and shared Google Drive folder and auto-generate configs/data_registry.yaml.
+"""Scan local data/ and shared Google Drive folder; auto-generate data_registry.yaml.
 
-Usage:
+Usage::
 
-  python common_scripts/data_registry_sync.py --mode resync
+    python -m amazon_next_category.io.registry_sync --mode resync
 
 This will:
-  - connect to Google Drive
-  - walk the shared folder tree (assumed to mirror `data/` structure)
-  - scan local `data/` tree
-  - build / overwrite configs/data_registry.yaml so that `data_io.ensure_local(...)`
-    knows how to download files by key.
+- connect to Google Drive
+- walk the shared folder tree (assumed to mirror the ``data/`` structure)
+- scan the local ``data/`` tree
+- build / overwrite ``configs/data_registry.yaml``
 """
 
+from __future__ import annotations
+
 import argparse
+import logging
 from pathlib import Path
 from typing import Dict, Tuple
-import sys
+
 import yaml
 from pydrive2.drive import GoogleDrive
 
-# Make sure we can import siblings (data_io.py) no matter where we run it from
-THIS_DIR = Path(__file__).resolve().parent
-if str(THIS_DIR) not in sys.path:
-    sys.path.insert(0, str(THIS_DIR))
+from amazon_next_category.io.data_io import _get_drive_and_root
 
-from data_io import _get_drive_and_root
+logger = logging.getLogger(__name__)
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 DATA_DIR = REPO_ROOT / "data"
 REGISTRY_PATH = REPO_ROOT / "configs" / "data_registry.yaml"
 DRIVE_CFG_PATH = REPO_ROOT / "configs" / "drive_config.yaml"
-CLIENT_SECRETS_PATH = REPO_ROOT / "configs" / "client_secrets.json"
+
+
+# ---------------------------------------------------------------------------
+# Drive helpers
+# ---------------------------------------------------------------------------
+
 
 def load_drive_root_id() -> str:
+    """Read the shared Drive root folder ID from drive_config.yaml."""
     if not DRIVE_CFG_PATH.exists():
         raise FileNotFoundError(
             f"Missing drive_config.yaml at {DRIVE_CFG_PATH}. "
@@ -49,25 +52,26 @@ def load_drive_root_id() -> str:
 
 
 def get_drive() -> GoogleDrive:
-    """
-    Use the shared Drive client from data_io, which caches credentials and only
-    does browser-based auth when necessary.
-    """
+    """Return the shared Drive client (credentials cached by data_io)."""
     drive, _ = _get_drive_and_root()
     return drive
 
 
+# ---------------------------------------------------------------------------
+# Drive tree walker
+# ---------------------------------------------------------------------------
+
+
 def walk_drive_tree(drive: GoogleDrive, root_folder_id: str) -> Dict[str, str]:
-    """
-    Recursively walk the shared Drive folder and return mapping:
-      'data/processed/Category/file.ext' -> file_id
-    We assume the Drive folder mirrors the `data/` substructure,
-    so root_folder_id corresponds to `data/`.
+    """Recursively walk the shared Drive folder.
+
+    Returns a mapping ``'data/processed/.../file.ext' -> file_id``.
+    The Drive folder is assumed to mirror the ``data/`` structure, so
+    *root_folder_id* corresponds to ``data/``.
     """
     relpath_to_id: Dict[str, str] = {}
 
-    def _walk(folder_id: str, curr_rel: Path):
-        # List children of this folder
+    def _walk(folder_id: str, curr_rel: Path) -> None:
         file_list = drive.ListFile(
             {"q": f"'{folder_id}' in parents and trashed=false"}
         ).GetList()
@@ -79,19 +83,20 @@ def walk_drive_tree(drive: GoogleDrive, root_folder_id: str) -> Dict[str, str]:
             if mime == "application/vnd.google-apps.folder":
                 _walk(fid, curr_rel / name)
             else:
-                rel_path = Path("data") / curr_rel / name  # data/... path
+                rel_path = Path("data") / curr_rel / name
                 relpath_to_id[str(rel_path)] = fid
 
     _walk(root_folder_id, Path())
     return relpath_to_id
 
 
+# ---------------------------------------------------------------------------
+# Local scan
+# ---------------------------------------------------------------------------
+
+
 def scan_local_data() -> Dict[str, bool]:
-    """
-    Return set-like dict:
-      'data/processed/.../file.ext' -> True
-    for all local files under data/
-    """
+    """Return ``{rel_path: True}`` for all files under ``data/``."""
     local_map: Dict[str, bool] = {}
     if not DATA_DIR.exists():
         return local_map
@@ -103,38 +108,36 @@ def scan_local_data() -> Dict[str, bool]:
     return local_map
 
 
-def infer_namespace_key(rel_path: str) -> Tuple[str, str]:
-    """
-    Heuristic to map a relative path like:
-      'data/processed/Automotive/user_counts_Automotive.parquet'
-    to (namespace='processed', key='user_counts_Automotive').
+# ---------------------------------------------------------------------------
+# Registry builder
+# ---------------------------------------------------------------------------
 
-    This matches how data_io currently expects the registry to be structured.
+
+def infer_namespace_key(rel_path: str) -> Tuple[str, str]:
+    """Heuristically map a relative path to ``(namespace, key)``.
+
+    Examples::
+
+        'data/processed/Automotive/user_counts_Automotive.parquet'
+        -> ('processed', 'user_counts_Automotive')
+
+        'data/raw/all_categories.txt'
+        -> ('raw', 'all_categories.txt')
     """
     p = Path(rel_path)
-    parts = p.parts  # ('data','processed','Automotive','user_counts_Automotive.parquet',...)
+    parts = p.parts
 
     if len(parts) >= 3 and parts[1] == "processed":
-        namespace = "processed"
-        key = p.stem  # e.g. 'user_counts_Automotive', 'top_users'
-        return namespace, key
+        return "processed", p.stem
 
     if len(parts) >= 3 and parts[1] == "raw":
-        namespace = "raw"
-        key = p.name
-        return namespace, key
+        return "raw", p.name
 
-    # global files under data/global/
     if len(parts) >= 3 and parts[1] == "global":
-        namespace = "processed"
-        key = p.stem
-        return namespace, key
+        return "processed", p.stem
 
-    # lock files under data/locks/...
     if len(parts) >= 3 and parts[1] == "locks":
-        namespace = "locks"
-        key = p.stem
-        return namespace, key
+        return "locks", p.stem
 
     return "", ""
 
@@ -144,10 +147,8 @@ def build_registry(
     local_map: Dict[str, bool],
     remote_map: Dict[str, str],
 ) -> Dict:
-    """
-    Build the full registry dict to dump as YAML.
-    """
-    registry = {
+    """Build the full registry dict ready to dump as YAML."""
+    registry: Dict = {
         "drive_root_folder_id": drive_root_id,
         "raw": {},
         "processed": {},
@@ -159,7 +160,6 @@ def build_registry(
     for rel in all_paths:
         ns, key = infer_namespace_key(rel)
         if not ns or not key:
-            # Unknown / unhandled location -> skip
             continue
 
         ns_dict = registry.setdefault(ns, {})
@@ -172,7 +172,14 @@ def build_registry(
     return registry
 
 
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+
+
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+
     parser = argparse.ArgumentParser(
         description="Sync local data/ and shared Google Drive into data_registry.yaml"
     )
@@ -180,30 +187,30 @@ def main() -> None:
         "--mode",
         choices=["resync"],
         default="resync",
-        help="Currently only 'resync' is supported: rebuild the registry from scratch.",
+        help="Currently only 'resync' is supported.",
     )
-    args = parser.parse_args()
+    args = parser.parse_args()  # noqa: F841
 
     drive_root_id = load_drive_root_id()
     drive = get_drive()
 
-    print(">>> Scanning Google Drive shared data folder...")
+    logger.info("Scanning Google Drive shared data folder...")
     remote_map = walk_drive_tree(drive, drive_root_id)
-    print(f"    Found {len(remote_map)} remote files under shared drive root.")
+    logger.info("Found %d remote files under shared drive root.", len(remote_map))
 
-    print(">>> Scanning local data/ tree...")
+    logger.info("Scanning local data/ tree...")
     local_map = scan_local_data()
-    print(f"    Found {len(local_map)} local files under data/")
+    logger.info("Found %d local files under data/", len(local_map))
 
-    print(">>> Building data registry...")
+    logger.info("Building data registry...")
     registry = build_registry(drive_root_id, local_map, remote_map)
 
     REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
     with open(REGISTRY_PATH, "w", encoding="utf-8") as f:
         yaml.safe_dump(registry, f, sort_keys=True)
 
-    print(f"[OK] Wrote registry to {REGISTRY_PATH}")
-    print("You can now use data_io.ensure_local(...) from your scripts.")
+    logger.info("Wrote registry to %s", REGISTRY_PATH)
+    logger.info("You can now use data_io.ensure_local(...) from your scripts.")
 
 
 if __name__ == "__main__":
