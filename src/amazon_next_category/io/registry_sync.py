@@ -28,33 +28,6 @@ logger = logging.getLogger(__name__)
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DATA_DIR = REPO_ROOT / "data"
 REGISTRY_PATH = REPO_ROOT / "configs" / "data_registry.yaml"
-DRIVE_CFG_PATH = REPO_ROOT / "configs" / "drive_config.yaml"
-
-
-# ---------------------------------------------------------------------------
-# Drive helpers
-# ---------------------------------------------------------------------------
-
-
-def load_drive_root_id() -> str:
-    """Read the shared Drive root folder ID from drive_config.yaml."""
-    if not DRIVE_CFG_PATH.exists():
-        raise FileNotFoundError(
-            f"Missing drive_config.yaml at {DRIVE_CFG_PATH}. "
-            "Create it with a `drive_root_folder_id` field."
-        )
-    with open(DRIVE_CFG_PATH, "r", encoding="utf-8") as f:
-        cfg = yaml.safe_load(f)
-    root_id = cfg.get("drive_root_folder_id")
-    if not root_id:
-        raise ValueError("drive_root_folder_id missing in drive_config.yaml")
-    return root_id
-
-
-def get_drive() -> GoogleDrive:
-    """Return the shared Drive client (credentials cached by data_io)."""
-    drive, _ = _get_drive_and_root()
-    return drive
 
 
 # ---------------------------------------------------------------------------
@@ -189,8 +162,7 @@ def main() -> None:
     )
     args = parser.parse_args()  # noqa: F841
 
-    drive_root_id = load_drive_root_id()
-    drive = get_drive()
+    drive, drive_root_id = _get_drive_and_root()
 
     logger.info("Scanning Google Drive shared data folder...")
     remote_map = walk_drive_tree(drive, drive_root_id)

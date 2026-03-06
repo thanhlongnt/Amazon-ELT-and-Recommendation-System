@@ -16,12 +16,11 @@ import json
 import logging
 import os
 import time
-from collections import Counter, defaultdict
+from collections import Counter
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-import matplotlib.pyplot as plt
 import pandas as pd
 
 from amazon_next_category.io.data_io import (
@@ -32,9 +31,15 @@ from amazon_next_category.io.data_io import (
     resync_registry,
     upload_to_drive,
 )
+from amazon_next_category.pipeline.pipeline_utils import (
+    download_if_needed,
+    ensure_outputs_from_drive,
+    ensure_raw_gzip_or_download,
+    read_all_categories_from_file,
+    save_helpful_hist_plot,
+    save_rating_hist_plot,
+)
 from amazon_next_category.utils.config import (
-    CHUNK_SIZE,
-    DOWNLOAD_TIMEOUT,
     META_URL_TEMPLATE,
     REVIEW_URL_TEMPLATE,
 )
@@ -42,105 +47,6 @@ from amazon_next_category.utils.config import (
 logger = logging.getLogger(__name__)
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-
-
-# ---------------------------------------------------------------------------
-# Plot helpers
-# ---------------------------------------------------------------------------
-
-
-def save_rating_hist_plot(rating_hist: Counter, out_path: Path, title: str) -> None:
-    if not rating_hist:
-        logger.warning("No ratings to plot.")
-        return
-    items = sorted(rating_hist.items())
-    xs = [k for k, _ in items]
-    ys = [v for _, v in items]
-    plt.figure()
-    plt.bar(xs, ys)
-    plt.xlabel("Rating")
-    plt.ylabel("Count")
-    plt.title(title)
-    plt.tight_layout()
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    plt.savefig(out_path)
-    plt.close()
-    logger.info("Saved rating hist: %s", out_path)
-
-
-def save_helpful_hist_plot(helpful_hist: Counter, out_path: Path, title: str) -> None:
-    if not helpful_hist:
-        logger.warning("No helpful_votes to plot.")
-        return
-    items = sorted(helpful_hist.items())
-    xs = [k for k, _ in items]
-    ys = [v for _, v in items]
-    plt.figure()
-    plt.bar(xs, ys)
-    plt.xlabel("Helpful votes (clipped)")
-    plt.ylabel("Count")
-    plt.title(title)
-    plt.tight_layout()
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    plt.savefig(out_path)
-    plt.close()
-    logger.info("Saved helpful hist: %s", out_path)
-
-
-# ---------------------------------------------------------------------------
-# Download helper
-# ---------------------------------------------------------------------------
-
-
-def download_if_needed(url: str, dest: Path, force: bool = False) -> None:
-    import requests
-
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    if dest.exists() and not force:
-        logger.debug("File already exists: %s", dest)
-        return
-
-    logger.info("Downloading%s: %s -> %s", " (force)" if force else "", url, dest)
-    with requests.get(url, stream=True, timeout=DOWNLOAD_TIMEOUT) as r:
-        r.raise_for_status()
-        with open(dest, "wb") as f:
-            for chunk in r.iter_content(chunk_size=CHUNK_SIZE):
-                if chunk:
-                    f.write(chunk)
-    logger.info("Download complete: %s", dest)
-
-
-def ensure_raw_gzip_or_download(
-    path: Path, url: str, allow_download: bool, repo_root: Path
-) -> None:
-    if path.exists():
-        return
-    rel = str(path.relative_to(repo_root))
-    try:
-        logger.info("Trying Drive for %s", rel)
-        ensure_local_path(rel)
-        if path.exists():
-            return
-    except Exception:
-        pass
-    if allow_download:
-        download_if_needed(url, path, force=False)
-    else:
-        raise FileNotFoundError(
-            f"Missing {path} and --no-download is set; "
-            "no Drive entry or HTTP download attempted."
-        )
-
-
-def ensure_outputs_from_drive(paths: List[Path], repo_root: Path) -> None:
-    for p in paths:
-        if p.exists():
-            continue
-        rel = str(p.relative_to(repo_root))
-        try:
-            ensure_local_path(rel)
-        except Exception:
-            pass
 
 
 # ---------------------------------------------------------------------------
@@ -743,11 +649,6 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--progress-interval", type=int, default=1_000_000)
     return parser.parse_args()
-
-
-def read_all_categories_from_file(path: Path) -> List[str]:
-    with open(path, "r", encoding="utf-8") as f:
-        return [line.strip() for line in f if line.strip()]
 
 
 def main() -> None:

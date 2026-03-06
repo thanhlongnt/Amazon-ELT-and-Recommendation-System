@@ -24,7 +24,14 @@ from sklearn.svm import LinearSVC
 from sklearn.tree import DecisionTreeClassifier
 
 from amazon_next_category.utils.config import RANDOM_SEED, TRAIN_SPLIT, VAL_SPLIT
-from amazon_next_category.utils.model_io import list_shard_files, load_split_from_shards
+from amazon_next_category.utils.model_io import (
+    list_shard_files,
+    load_split_from_shards,
+    log_baselines,
+    select_feature_columns,
+    split_shards,
+    validate_split_columns,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -110,69 +117,18 @@ def main() -> None:
     np.random.seed(RANDOM_SEED)
 
     shard_files = list_shard_files(SHARD_DIR)
-    n_shards = len(shard_files)
-    logger.info("Found %d shard files.", n_shards)
-
-    rng = np.random.RandomState(RANDOM_SEED)
-    shard_files_arr = np.array(shard_files)
-    rng.shuffle(shard_files_arr)
-
-    n_train = int(TRAIN_SPLIT * n_shards)
-    n_val = int(VAL_SPLIT * n_shards)
-
-    train_files = list(shard_files_arr[:n_train])
-    val_files = list(shard_files_arr[n_train : n_train + n_val])
-    test_files = list(shard_files_arr[n_train + n_val :])
-
-    logger.info(
-        "Shard split — train: %d, val: %d, test: %d",
-        len(train_files),
-        len(val_files),
-        len(test_files),
+    logger.info("Found %d shard files.", len(shard_files))
+    train_files, val_files, test_files = split_shards(
+        shard_files, TRAIN_SPLIT, VAL_SPLIT, RANDOM_SEED
     )
-
     df_train = load_split_from_shards(train_files, MAX_TRAIN_ROWS, "train")
     df_val = load_split_from_shards(val_files, MAX_VAL_ROWS, "val")
     df_test = load_split_from_shards(test_files, MAX_TEST_ROWS, "test")
+    validate_split_columns([("train", df_train), ("val", df_val), ("test", df_test)])
+    log_baselines(df_train, df_val)
+    feature_cols, cat_feature_cols, numeric_feature_cols = select_feature_columns(df_train)
 
-    for name, df_part in [("train", df_train), ("val", df_val), ("test", df_test)]:
-        for col in ["user_id", "target_category_idx", "target_category"]:
-            if col not in df_part.columns:
-                raise ValueError(f"[{name}] Missing required column '{col}'")
-        df_part["target_category_idx"] = df_part["target_category_idx"].astype(int)
-
-    # Baselines
-    logger.info("Computing baselines on val split...")
-    y_val_true = df_val["target_category_idx"].to_numpy()
-    majority_class = df_train["target_category_idx"].value_counts().idxmax()
-    acc_majority = accuracy_score(y_val_true, np.full_like(y_val_true, majority_class))
-    logger.info("Val accuracy (global majority, idx=%d): %.4f", majority_class, acc_majority)
-
-    if "last_category_idx" in df_val.columns:
-        acc_last = accuracy_score(y_val_true, df_val["last_category_idx"].astype(int).to_numpy())
-        logger.info("Val accuracy (last_category_idx): %.4f", acc_last)
-
-    if "prefix_most_freq_category_idx" in df_val.columns:
-        acc_most = accuracy_score(
-            y_val_true, df_val["prefix_most_freq_category_idx"].astype(int).to_numpy()
-        )
-        logger.info("Val accuracy (prefix_most_freq_category_idx): %.4f", acc_most)
-
-    # Feature selection
     label_col = "target_category_idx"
-    drop_cols = ["user_id", "target_category"]
-    feature_cols = [c for c in df_train.columns if c not in drop_cols + [label_col]]
-
-    cat_feature_cols = [c for c in feature_cols if "category_idx" in c]
-    numeric_feature_cols = [c for c in feature_cols if c not in cat_feature_cols]
-
-    logger.info(
-        "Features — total: %d, numeric: %d, categorical: %d",
-        len(feature_cols),
-        len(numeric_feature_cols),
-        len(cat_feature_cols),
-    )
-
     X_train = df_train[feature_cols].copy()
     y_train = df_train[label_col].copy()
     X_val = df_val[feature_cols].copy()
