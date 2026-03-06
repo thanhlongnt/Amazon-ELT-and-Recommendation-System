@@ -1,27 +1,23 @@
 #!/usr/bin/env python
-"""
-Preprocess Amazon-Reviews-2023 categories.
+"""Preprocess Amazon-Reviews-2023 categories.
 
 For each category:
-  - Download / fetch review + meta .jsonl.gz files (Drive or UCSD)
-  - Stream and parse the review file
-  - Compute per-user purchase counts
-  - Compute basic EDA stats (ratings, helpful votes, user purchase counts)
-  - Stream meta file for simple item-level stats
-  - Saves:
-      data/processed/<Category>/user_counts_<Category>.parquet
-      data/processed/<Category>/review_stats_<Category>.json
-      data/processed/<Category>/meta_stats_<Category>.json
-      data/processed/<Category>/*_hist_<Category>.png
-  - By default, deletes local raw gz files when done (cleanup_raw=True).
+- Download / fetch review + meta ``.jsonl.gz`` files (Drive or UCSD)
+- Stream and parse the review file
+- Compute per-user purchase counts
+- Compute basic EDA stats (ratings, helpful votes, user purchase counts)
+- Stream meta file for simple item-level stats
+- Save results under ``data/processed/<Category>/``
+
+By default, local raw gz files are deleted after processing (``cleanup_raw=True``).
 """
 
-# pip install requests pandas matplotlib pyarrow
+from __future__ import annotations
 
 import argparse
 import gzip
 import json
-import sys
+import logging
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Dict, List
@@ -30,74 +26,60 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import requests
 
-# Make sure we can import siblings (data_io.py)
-THIS_DIR = Path(__file__).resolve().parent
-if str(THIS_DIR) not in sys.path:
-    sys.path.insert(0, str(THIS_DIR))
-
-from data_io import (  # noqa: E402
+from amazon_next_category.io.data_io import (
     ensure_local,
     ensure_local_path,
     resync_registry,
     upload_to_drive,
 )
-
-
-# Config / paths
-
-REVIEW_URL_TEMPLATE = (
-    "https://mcauleylab.ucsd.edu/public_datasets/data/amazon_2023/raw/"
-    "review_categories/{category}.jsonl.gz"
-)
-META_URL_TEMPLATE = (
-    "https://mcauleylab.ucsd.edu/public_datasets/data/amazon_2023/raw/"
-    "meta_categories/meta_{category}.jsonl.gz"
+from amazon_next_category.utils.config import (
+    CHUNK_SIZE,
+    DOWNLOAD_TIMEOUT,
+    META_URL_TEMPLATE,
+    REVIEW_URL_TEMPLATE,
 )
 
+logger = logging.getLogger(__name__)
 
-def get_repo_root() -> Path:
-    """Return repository root (one level above common_scripts)."""
-    return Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
+# ---------------------------------------------------------------------------
 # Download helpers
+# ---------------------------------------------------------------------------
+
 
 def download_if_needed(url: str, dest: Path, force: bool = False) -> None:
+    """Stream-download *url* to *dest*, skipping if it already exists."""
     dest.parent.mkdir(parents=True, exist_ok=True)
     if dest.exists() and not force:
-        print(f"  [exists] {dest}")
+        logger.debug("File already exists: %s", dest)
         return
 
-    print(f"  [download{' (force)' if force else ''}] {url} -> {dest}")
-    with requests.get(url, stream=True, timeout=60) as r:
+    logger.info("Downloading%s: %s -> %s", " (force)" if force else "", url, dest)
+    with requests.get(url, stream=True, timeout=DOWNLOAD_TIMEOUT) as r:
         r.raise_for_status()
         with open(dest, "wb") as f:
-            for chunk in r.iter_content(chunk_size=8192):
+            for chunk in r.iter_content(chunk_size=CHUNK_SIZE):
                 if chunk:
                     f.write(chunk)
-    print("  [ok] download complete")
+    logger.info("Download complete: %s", dest)
 
 
 def ensure_raw_gzip_or_download(
     path: Path, url: str, allow_download: bool, repo_root: Path
 ) -> None:
-    """
-    Ensure a raw gzip exists locally by:
-      1) Checking local path
-      2) Trying Drive via ensure_local_path (using relative path)
-      3) Falling back to direct HTTP download from UCSD if allowed
-    """
+    """Ensure a raw gzip exists locally (Drive first, then UCSD fallback)."""
     if path.exists():
         return
 
     rel = str(path.relative_to(repo_root))
     try:
-        print(f"  [data_io] trying Drive for {rel}")
+        logger.info("Trying Drive for %s", rel)
         ensure_local_path(rel)
         if path.exists():
             return
     except Exception:
-        # No registry entry or download failed -> fall back
         pass
 
     if allow_download:
@@ -110,10 +92,7 @@ def ensure_raw_gzip_or_download(
 
 
 def ensure_outputs_from_drive(paths: List[Path], repo_root: Path) -> None:
-    """
-    For each expected output, if it's missing locally but exists in Drive
-    (according to registry), pull it down so we can skip work.
-    """
+    """Pull expected outputs from Drive (if registered) to enable skipping."""
     for p in paths:
         if p.exists():
             continue
@@ -121,7 +100,6 @@ def ensure_outputs_from_drive(paths: List[Path], repo_root: Path) -> None:
         try:
             ensure_local_path(rel)
         except Exception:
-            # No registry entry or download failed – ignore.
             pass
 
 
@@ -129,16 +107,14 @@ def ensure_outputs_from_drive(paths: List[Path], repo_root: Path) -> None:
 # EDA & processing
 # ---------------------------------------------------------------------------
 
-def process_review_file(
-    gz_path: Path,
-    category: str,
-    max_helpful_bucket: int = 10,
-) -> Dict:
-    print(f"  [reviews] parsing {gz_path}")
 
-    user_counts = defaultdict(int)
-    rating_hist = Counter()
-    helpful_hist = Counter()
+def process_review_file(gz_path: Path, category: str, max_helpful_bucket: int = 10) -> Dict:
+    """Stream-parse *gz_path* and return counts / histograms."""
+    logger.info("Parsing reviews: %s", gz_path)
+
+    user_counts: Dict[str, int] = defaultdict(int)
+    rating_hist: Counter = Counter()
+    helpful_hist: Counter = Counter()
     n_reviews = 0
     n_verified = 0
 
@@ -163,20 +139,19 @@ def process_review_file(
             except (TypeError, ValueError):
                 pass
 
-            # Helpful votes
             hv = obj.get("helpful_votes", 0)
             try:
                 hv = int(hv)
             except (TypeError, ValueError):
                 hv = 0
-            hv_clipped = min(hv, max_helpful_bucket)
-            helpful_hist[hv_clipped] += 1
+            helpful_hist[min(hv, max_helpful_bucket)] += 1
 
-            # Verified purchase
             if obj.get("verified_purchase"):
                 n_verified += 1
 
-    print(f"  [reviews] n_reviews={n_reviews:,}, n_users={len(user_counts):,}")
+    logger.info(
+        "Reviews parsed: n_reviews=%d, n_users=%d", n_reviews, len(user_counts)
+    )
     return {
         "user_counts": user_counts,
         "rating_hist": rating_hist,
@@ -187,10 +162,11 @@ def process_review_file(
 
 
 def process_meta_file(gz_path: Path) -> Dict:
-    print(f"  [meta] parsing {gz_path}")
+    """Stream-parse meta gzip and return item-level stats."""
+    logger.info("Parsing meta: %s", gz_path)
 
     n_items = 0
-    rating_number_hist = Counter()
+    rating_number_hist: Counter = Counter()
     price_count = 0
     price_sum = 0.0
     price_sum_sq = 0.0
@@ -203,16 +179,13 @@ def process_meta_file(gz_path: Path) -> Dict:
             obj = json.loads(line)
             n_items += 1
 
-            # rating_number
             rn = obj.get("rating_number")
             try:
                 if rn is not None:
-                    rn = int(rn)
-                    rating_number_hist[rn] += 1
+                    rating_number_hist[int(rn)] += 1
             except (TypeError, ValueError):
                 pass
 
-            # price
             price = obj.get("price")
             try:
                 if price is not None and price != "None":
@@ -223,7 +196,7 @@ def process_meta_file(gz_path: Path) -> Dict:
             except (TypeError, ValueError):
                 pass
 
-    print(f"  [meta] n_items={n_items:,}")
+    logger.info("Meta parsed: n_items=%d", n_items)
     return {
         "n_items": n_items,
         "rating_number_hist": rating_number_hist,
@@ -233,11 +206,14 @@ def process_meta_file(gz_path: Path) -> Dict:
     }
 
 
+# ---------------------------------------------------------------------------
 # Plot helpers
+# ---------------------------------------------------------------------------
+
 
 def save_rating_hist_plot(rating_hist: Counter, out_path: Path, title: str) -> None:
     if not rating_hist:
-        print("  [plot] no ratings to plot")
+        logger.warning("No ratings to plot.")
         return
     items = sorted(rating_hist.items())
     xs = [k for k, _ in items]
@@ -252,12 +228,12 @@ def save_rating_hist_plot(rating_hist: Counter, out_path: Path, title: str) -> N
     out_path.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(out_path)
     plt.close()
-    print(f"  [plot] saved {out_path}")
+    logger.info("Saved rating hist: %s", out_path)
 
 
 def save_helpful_hist_plot(helpful_hist: Counter, out_path: Path, title: str) -> None:
     if not helpful_hist:
-        print("  [plot] no helpful_votes to plot")
+        logger.warning("No helpful_votes to plot.")
         return
     items = sorted(helpful_hist.items())
     xs = [k for k, _ in items]
@@ -272,15 +248,16 @@ def save_helpful_hist_plot(helpful_hist: Counter, out_path: Path, title: str) ->
     out_path.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(out_path)
     plt.close()
-    print(f"  [plot] saved {out_path}")
+    logger.info("Saved helpful hist: %s", out_path)
 
 
-def save_user_purchases_hist_plot(user_counts: Dict[str, int], out_path: Path, title: str) -> None:
+def save_user_purchases_hist_plot(
+    user_counts: Dict[str, int], out_path: Path, title: str
+) -> None:
     if not user_counts:
-        print("  [plot] no user counts to plot")
+        logger.warning("No user counts to plot.")
         return
     vals = list(user_counts.values())
-    # For readability, we can clip to, say, 50 purchases
     clipped = [min(v, 50) for v in vals]
 
     plt.figure()
@@ -288,15 +265,18 @@ def save_user_purchases_hist_plot(user_counts: Dict[str, int], out_path: Path, t
     plt.xlabel("Purchases per user (clipped at 50)")
     plt.ylabel("Number of users")
     plt.title(title)
-    plt.yscale("log")  # user counts are very skewed
+    plt.yscale("log")
     plt.tight_layout()
     out_path.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(out_path)
     plt.close()
-    print(f"  [plot] saved {out_path}")
+    logger.info("Saved user-purchases hist: %s", out_path)
 
 
-# Main per-category processing
+# ---------------------------------------------------------------------------
+# Per-category processing
+# ---------------------------------------------------------------------------
+
 
 def process_category(
     category: str,
@@ -307,21 +287,13 @@ def process_category(
     allow_download: bool,
     repo_root: Path,
 ) -> None:
-    """
-    Process a single category with granular skipping and Drive-backed locking:
-      - Skip whole category if ALL expected outputs exist (locally or via Drive).
-      - Otherwise, skip individual steps if their outputs exist.
-      - Upload processed outputs + lockfiles to Drive.
-      - Optionally delete raw gz and/or processed outputs locally.
-    """
-    print(f"\n=== Category: {category} ===")
+    """Process a single Amazon category end-to-end."""
+    logger.info("=== Category: %s ===", category)
 
-    # ------------- Lock (per-script, per-category, Drive-aware) -------------
     lock_dir = repo_root / "data" / "locks" / "01_build_user_purchase_counts"
     lock_path = lock_dir / f"{category}.lock"
-
-    # Try to hydrate remote lock from Drive (if it exists) before checking
     rel_lock = str(lock_path.relative_to(repo_root))
+
     try:
         ensure_local_path(rel_lock)
     except Exception:
@@ -330,10 +302,7 @@ def process_category(
     lock_dir.mkdir(parents=True, exist_ok=True)
 
     if lock_path.exists():
-        print(
-            f"  [lock] Detected existing lock for {category} at {lock_path}. "
-            "Skipping this category."
-        )
+        logger.info("Lock exists for %s; skipping.", category)
         return
 
     with open(lock_path, "w", encoding="utf-8") as lf:
@@ -341,10 +310,9 @@ def process_category(
     try:
         upload_to_drive(lock_path)
     except Exception as e:
-        print(f"  [lock] WARNING: failed to upload lock to Drive: {e}")
+        logger.warning("Failed to upload lock to Drive: %s", e)
 
     try:
-        # Paths
         review_url = REVIEW_URL_TEMPLATE.format(category=category)
         meta_url = META_URL_TEMPLATE.format(category=category)
 
@@ -354,7 +322,6 @@ def process_category(
         cat_proc_dir = processed_dir / category
         cat_proc_dir.mkdir(parents=True, exist_ok=True)
 
-        # Expected processed outputs
         user_counts_path = cat_proc_dir / f"user_counts_{category}.parquet"
         review_stats_path = cat_proc_dir / f"review_stats_{category}.json"
         rating_hist_png = cat_proc_dir / f"rating_hist_{category}.png"
@@ -371,77 +338,53 @@ def process_category(
             meta_stats_path,
         ]
 
-        # Try to hydrate processed outputs from Drive
         ensure_outputs_from_drive(expected_outputs, repo_root)
 
-        # --- Category-level skip if everything is already there ---
         if all(p.exists() for p in expected_outputs):
-            print("  [skip] all processed outputs exist for this category; skipping heavy work.")
+            logger.info("All outputs exist for %s; skipping.", category)
             if cleanup_raw:
                 for p in (review_gz_path, meta_gz_path):
                     if p.exists():
-                        print(f"  [cleanup] removing {p}")
+                        logger.info("Removing raw file: %s", p)
                         p.unlink()
-            print(f"=== Done category (skipped): {category} ===")
             return
 
-        # Always ensure gz files are present before any step that might need them
-        ensure_raw_gzip_or_download(
-            review_gz_path, review_url, allow_download, repo_root
-        )
-        ensure_raw_gzip_or_download(
-            meta_gz_path, meta_url, allow_download, repo_root
-        )
+        ensure_raw_gzip_or_download(review_gz_path, review_url, allow_download, repo_root)
+        ensure_raw_gzip_or_download(meta_gz_path, meta_url, allow_download, repo_root)
 
-        # -------------------------------------------------------------------
-        # Step 1: ensure review_stats + user_counts exist
-        # -------------------------------------------------------------------
+        # Step 1: review stats + user counts
         user_counts_df = None
         rating_hist = None
         helpful_hist = None
 
         if user_counts_path.exists() and review_stats_path.exists():
-            print("  [skip] user_counts + review_stats already exist; loading from disk.")
-            # Load from existing artifacts
+            logger.info("Loading existing user_counts + review_stats for %s.", category)
             user_counts_df = pd.read_parquet(user_counts_path)
             with open(review_stats_path, "r", encoding="utf-8") as f:
                 stats = json.load(f)
-            rating_hist = Counter(
-                {float(k): v for k, v in stats["rating_hist"].items()}
-            )
-            helpful_hist = Counter(
-                {int(k): v for k, v in stats["helpful_hist"].items()}
-            )
+            rating_hist = Counter({float(k): v for k, v in stats["rating_hist"].items()})
+            helpful_hist = Counter({int(k): v for k, v in stats["helpful_hist"].items()})
         else:
-            print("  [run] computing review_stats + user_counts from gz.")
-            # (Re)compute from gz, with re-download protection for truncated file
+            logger.info("Computing review_stats + user_counts for %s.", category)
             try:
-                review_stats_raw = process_review_file(
-                    review_gz_path, category
-                )
+                review_stats_raw = process_review_file(review_gz_path, category)
             except EOFError:
-                print(
-                    f"  [warn] Detected truncated gzip for {category}, re-downloading..."
-                )
+                logger.warning("Truncated gzip for %s; re-downloading.", category)
                 download_if_needed(review_url, review_gz_path, force=True)
-                review_stats_raw = process_review_file(
-                    review_gz_path, category
-                )
+                review_stats_raw = process_review_file(review_gz_path, category)
 
             user_counts = review_stats_raw["user_counts"]
             rating_hist = review_stats_raw["rating_hist"]
             helpful_hist = review_stats_raw["helpful_hist"]
 
-            # Build DataFrame for ALL users, no filtering
             user_counts_rows = [
                 {"user_id": uid, "num_purchases": cnt, "category": category}
                 for uid, cnt in user_counts.items()
             ]
             user_counts_df = pd.DataFrame(user_counts_rows)
             user_counts_df.to_parquet(user_counts_path, index=False)
-            print(f"  [save] user_counts -> {user_counts_path}")
+            logger.info("Saved user_counts: %s", user_counts_path)
 
-            # Save review stats JSON
             review_stats_out = {
                 "category": category,
                 "n_reviews": review_stats_raw["n_reviews"],
@@ -452,80 +395,52 @@ def process_category(
             }
             with open(review_stats_path, "w", encoding="utf-8") as f:
                 json.dump(review_stats_out, f, indent=2)
-            print(f"  [save] review_stats -> {review_stats_path}")
+            logger.info("Saved review_stats: %s", review_stats_path)
 
-        # -------------------------------------------------------------------
-        # Step 2: ensure plots exist (rating, helpful, user_purchases)
-        # -------------------------------------------------------------------
+        # Step 2: plots
         if not rating_hist_png.exists():
             save_rating_hist_plot(
-                rating_hist,
-                rating_hist_png,
-                title=f"Rating distribution ({category})",
+                rating_hist, rating_hist_png, title=f"Rating distribution ({category})"
             )
-        else:
-            print(f"  [skip] rating hist plot already exists: {rating_hist_png}")
-
         if not helpful_hist_png.exists():
             save_helpful_hist_plot(
-                helpful_hist,
-                helpful_hist_png,
-                title=f"Helpful votes distribution ({category})",
+                helpful_hist, helpful_hist_png, title=f"Helpful votes ({category})"
             )
-        else:
-            print(
-                f"  [skip] helpful votes plot already exists: {helpful_hist_png}"
-            )
-
         if not user_purchases_png.exists():
-            # user_counts_df is guaranteed to be loaded at this point
             save_user_purchases_hist_plot(
                 dict(zip(user_counts_df["user_id"], user_counts_df["num_purchases"])),
                 user_purchases_png,
                 title=f"Purchases per user ({category})",
             )
-        else:
-            print(
-                f"  [skip] user purchases plot already exists: {user_purchases_png}"
-            )
 
-        # -------------------------------------------------------------------
-        # Step 3: ensure meta_stats exist
-        # -------------------------------------------------------------------
+        # Step 3: meta stats
         if meta_stats_path.exists():
-            print(f"  [skip] meta_stats already exist: {meta_stats_path}")
+            logger.info("meta_stats already exists: %s", meta_stats_path)
         else:
-            print("  [run] computing meta_stats from gz.")
+            logger.info("Computing meta_stats for %s.", category)
             try:
                 meta_stats_raw = process_meta_file(meta_gz_path)
             except EOFError:
-                print(
-                    f"  [warn] Detected truncated meta gzip for {category}, re-downloading..."
-                )
+                logger.warning("Truncated meta gzip for %s; re-downloading.", category)
                 download_if_needed(meta_url, meta_gz_path, force=True)
                 meta_stats_raw = process_meta_file(meta_gz_path)
 
             meta_stats_out = {
                 "category": category,
                 "n_items": meta_stats_raw["n_items"],
-                "rating_number_hist": dict(
-                    meta_stats_raw["rating_number_hist"]
-                ),
+                "rating_number_hist": dict(meta_stats_raw["rating_number_hist"]),
                 "price_count": meta_stats_raw["price_count"],
                 "price_mean": (
-                    meta_stats_raw["price_sum"]
-                    / meta_stats_raw["price_count"]
+                    meta_stats_raw["price_sum"] / meta_stats_raw["price_count"]
                     if meta_stats_raw["price_count"] > 0
                     else None
                 ),
             }
             with open(meta_stats_path, "w", encoding="utf-8") as f:
                 json.dump(meta_stats_out, f, indent=2)
-            print(f"  [save] meta_stats -> {meta_stats_path}")
+            logger.info("Saved meta_stats: %s", meta_stats_path)
 
-        # -------------------------------------------------------------------
-        # Upload processed artifacts to Drive
-        # -------------------------------------------------------------------
+        # Upload
         upload_targets = [
             user_counts_path,
             review_stats_path,
@@ -534,41 +449,34 @@ def process_category(
             user_purchases_png,
             meta_stats_path,
         ]
-        print("  [drive] uploading processed outputs to Drive...")
+        logger.info("Uploading processed outputs for %s to Drive...", category)
         for p in upload_targets:
             try:
                 upload_to_drive(p)
             except Exception as e:
-                print(f"  [drive] WARNING: failed to upload {p}: {e}")
+                logger.warning("Failed to upload %s: %s", p, e)
 
-        # -------------------------------------------------------------------
-        # Cleanup processed outputs (optional)
-        # -------------------------------------------------------------------
+        # Optional cleanup
         if cleanup_processed != "none":
             for p in upload_targets:
                 if cleanup_processed == "parquet" and p.suffix != ".parquet":
                     continue
-                # 'all' -> delete everything in upload_targets
                 try:
                     if p.exists():
-                        print(f"  [cleanup-processed] removing {p}")
+                        logger.info("Removing processed file: %s", p)
                         p.unlink()
                 except OSError as e:
-                    print(f"  [cleanup-processed] WARNING: failed to remove {p}: {e}")
+                    logger.warning("Failed to remove %s: %s", p, e)
 
-        # -------------------------------------------------------------------
-        # Cleanup raw gz files if requested
-        # -------------------------------------------------------------------
         if cleanup_raw:
             for p in (review_gz_path, meta_gz_path):
                 if p.exists():
-                    print(f"  [cleanup-raw] removing {p}")
+                    logger.info("Removing raw file: %s", p)
                     p.unlink()
 
-        print(f"=== Done category: {category} ===")
+        logger.info("=== Done: %s ===", category)
 
     finally:
-        # Always try to release lock
         if lock_path.exists():
             try:
                 lock_path.unlink()
@@ -576,7 +484,10 @@ def process_category(
                 pass
 
 
-# Category selection
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
 
 def read_all_categories_from_file(path: Path) -> List[str]:
     with open(path, "r", encoding="utf-8") as f:
@@ -587,81 +498,48 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Preprocess Amazon-Reviews-2023 categories (user counts + EDA)."
     )
-    parser.add_argument(
-        "--categories",
-        nargs="*",
-        help="List of category names to process (default: all from all_categories.txt).",
-    )
-    parser.add_argument(
-        "--categories-file",
-        type=str,
-        default=None,
-        help="Path to all_categories.txt (default: data/raw/all_categories.txt under repo).",
-    )
-    parser.add_argument(
-        "--no-cleanup-raw",
-        action="store_true",
-        help="If set, keep the downloaded .jsonl.gz files instead of deleting them.",
-    )
-    parser.add_argument(
-        "--no-cleanup",
-        action="store_true",
-        help="Alias for --no-cleanup-raw (backwards compatibility).",
-    )
+    parser.add_argument("--categories", nargs="*")
+    parser.add_argument("--categories-file", type=str, default=None)
+    parser.add_argument("--no-cleanup-raw", action="store_true")
+    parser.add_argument("--no-cleanup", action="store_true")
     parser.add_argument(
         "--cleanup-processed",
         choices=["none", "parquet", "all"],
         default="parquet",
-        help=(
-            "How to clean up processed outputs after uploading to Drive. "
-            "'none' = keep everything; "
-            "'parquet' = remove .parquet only (default); "
-            "'all' = remove parquet, JSON, and PNGs."
-        ),
     )
-    parser.add_argument(
-        "--no-download",
-        action="store_true",
-        help="Don't attempt to download missing raw files from UCSD; fail if not present.",
-    )
+    parser.add_argument("--no-download", action="store_true")
     return parser.parse_args()
 
 
 def main() -> None:
-    args = parse_args()
-    repo_root = get_repo_root()
-    raw_dir = repo_root / "data" / "raw"
-    processed_dir = repo_root / "data" / "processed"
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
+    args = parse_args()
+    raw_dir = REPO_ROOT / "data" / "raw"
+    processed_dir = REPO_ROOT / "data" / "processed"
     cleanup_raw = not (args.no_cleanup_raw or args.no_cleanup)
     cleanup_processed = args.cleanup_processed
     allow_download = not args.no_download
 
-    # Always resync registry at the start so Drive state is fresh
     resync_registry()
 
-    # Determine categories
     if args.categories:
         categories = args.categories
-        print(f"Using categories from CLI: {categories}")
+        logger.info("Using categories from CLI: %s", categories)
     else:
         if args.categories_file:
             cat_file = Path(args.categories_file)
             if not cat_file.is_absolute():
-                cat_file = repo_root / cat_file
+                cat_file = REPO_ROOT / cat_file
             if not cat_file.exists():
-                rel = str(cat_file.relative_to(repo_root))
-                print(
-                    f"[info] categories file not local; trying Drive for {rel}"
-                )
+                rel = str(cat_file.relative_to(REPO_ROOT))
+                logger.info("categories file not local; trying Drive for %s", rel)
                 cat_file = ensure_local_path(rel)
         else:
-            # Use registry entry raw.all_categories.txt by default
             cat_file = ensure_local("raw", "all_categories.txt")
 
         categories = read_all_categories_from_file(cat_file)
-        print(f"No categories specified; using all from {cat_file}")
-        print(f"{len(categories)} categories: {categories}")
+        logger.info("Loaded %d categories from %s", len(categories), cat_file)
 
     for cat in categories:
         try:
@@ -672,16 +550,11 @@ def main() -> None:
                 cleanup_raw=cleanup_raw,
                 cleanup_processed=cleanup_processed,
                 allow_download=allow_download,
-                repo_root=repo_root,
+                repo_root=REPO_ROOT,
             )
         except Exception as e:
-            print(f"  [error] processing {cat}: {e}")
+            logger.error("Error processing %s: %s", cat, e)
 
 
 if __name__ == "__main__":
     main()
-
-# examples:
-# python common_scripts/01_build_user_purchase_counts.py --categories All_Beauty Toys_and_Games
-# python common_scripts/01_build_user_purchase_counts.py --no-cleanup-raw
-# python common_scripts/01_build_user_purchase_counts.py --cleanup-processed all

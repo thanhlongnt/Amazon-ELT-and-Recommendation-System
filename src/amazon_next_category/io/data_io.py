@@ -1,60 +1,79 @@
-# pip install pydrive2 gdown google-api-python-client
+"""Data I/O utilities: registry loading, local-file resolution, and Drive sync.
 
+All Google Drive interaction (OAuth, upload, download) is centralised here.
+Other modules should call :func:`ensure_local` or :func:`ensure_local_path`
+rather than accessing Drive directly.
+"""
+
+from __future__ import annotations
+
+import logging
 import subprocess
 import sys
-import yaml
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
+import yaml
 from pydrive2.auth import GoogleAuth
 from pydrive2.drive import GoogleDrive
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Paths
+# ---------------------------------------------------------------------------
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
 CONFIG_PATH = REPO_ROOT / "configs" / "data_registry.yaml"
 DRIVE_CONFIG_PATH = REPO_ROOT / "configs" / "drive_config.yaml"
 CLIENT_SECRETS_PATH = REPO_ROOT / "configs" / "client_secrets.json"
 DRIVE_CREDENTIALS_PATH = REPO_ROOT / "configs" / "pydrive_credentials.json"
 
-_DATA_REGISTRY: Dict[str, Any] = {}
-_LOADED = False
+# ---------------------------------------------------------------------------
+# Module-level cache
+# ---------------------------------------------------------------------------
 
-# Cached Google Drive client + root folder id
+_DATA_REGISTRY: Dict[str, Any] = {}
+_LOADED: bool = False
+
 _DRIVE: Optional[GoogleDrive] = None
 _DRIVE_ROOT_ID: Optional[str] = None
 
 
-def resync_registry() -> None:
-    """
-    Automatically (re)build data_registry.yaml by calling data_registry_sync.py.
+# ---------------------------------------------------------------------------
+# Registry helpers
+# ---------------------------------------------------------------------------
 
-    Safe to call at the start of any script that needs registry-driven IO.
-    Relies on our shared Google auth (which caches credentials).
+
+def resync_registry() -> None:
+    """Rebuild data_registry.yaml by invoking the registry-sync script.
+
+    Safe to call at the start of any script that needs registry-driven I/O.
+    Credentials are cached, so the browser OAuth only runs once.
     """
-    sync_script = REPO_ROOT / "common_scripts" / "data_registry_sync.py"
+    sync_script = REPO_ROOT / "src" / "amazon_next_category" / "io" / "registry_sync.py"
     if not sync_script.exists():
-        print(
-            f"[data_io] WARNING: {sync_script} not found; "
-            f"cannot resync data registry."
-        )
+        logger.warning("registry_sync.py not found at %s; cannot resync.", sync_script)
         return
 
-    print("[data_io] Resyncing data registry from Google Drive...")
+    logger.info("Resyncing data registry from Google Drive...")
     cmd = [sys.executable, str(sync_script), "--mode", "resync"]
     subprocess.run(cmd, check=True)
+
     global _LOADED
     _LOADED = False  # force reload on next _load_registry
-    print("[data_io] Registry resync complete.")
+    logger.info("Registry resync complete.")
 
 
 def _load_registry(force: bool = False) -> None:
-    """Lazy-load data_registry.yaml into memory."""
+    """Lazy-load data_registry.yaml into the module-level cache."""
     global _DATA_REGISTRY, _LOADED
     if _LOADED and not force:
         return
     if not CONFIG_PATH.exists():
         raise FileNotFoundError(
             f"data_registry.yaml not found at {CONFIG_PATH}. "
-            "Run common_scripts/data_registry_sync.py or call resync_registry() first."
+            "Run registry_sync.py or call resync_registry() first."
         )
     with open(CONFIG_PATH, "r", encoding="utf-8") as f:
         _DATA_REGISTRY = yaml.safe_load(f) or {}
@@ -62,6 +81,7 @@ def _load_registry(force: bool = False) -> None:
 
 
 def get_entry(namespace: str, key: str) -> dict:
+    """Return the registry entry for ``namespace.key``."""
     _load_registry()
     try:
         ns = _DATA_REGISTRY[namespace]
@@ -74,9 +94,10 @@ def get_entry(namespace: str, key: str) -> dict:
 
 
 def ensure_local(namespace: str, key: str) -> Path:
-    """
-    Ensure the data file for (namespace, key) exists locally.
-    If not, and drive_file_id is present, download it via gdown.
+    """Ensure the file for ``namespace.key`` is present locally.
+
+    Downloads from Google Drive via *gdown* if the file is missing and a
+    ``drive_file_id`` is registered.
     """
     entry = get_entry(namespace, key)
     local_rel = entry["local_path"]
@@ -93,22 +114,16 @@ def ensure_local(namespace: str, key: str) -> Path:
             f"for {namespace}.{key}"
         )
 
-    print(f"[data_io] Downloading {namespace}.{key} from Drive -> {local_path}")
-    cmd = [
-        "gdown",
-        "--id",
-        file_id,
-        "-O",
-        str(local_path),
-    ]
+    logger.info("Downloading %s.%s from Drive -> %s", namespace, key, local_path)
+    cmd = ["gdown", "--id", file_id, "-O", str(local_path)]
     subprocess.run(cmd, check=True)
     return local_path
 
 
 def ensure_local_path(rel_path: str) -> Path:
-    """
-    Convenience: ensure a file at `rel_path` exists locally, using registry to
-    find its drive_file_id (if any).
+    """Resolve a repo-relative path to a local :class:`pathlib.Path`.
+
+    Looks up the path in the registry and delegates to :func:`ensure_local`.
     """
     _load_registry()
     rel_path = str(Path(rel_path))
@@ -125,11 +140,13 @@ def ensure_local_path(rel_path: str) -> Path:
     )
 
 
+# ---------------------------------------------------------------------------
+# Drive auth helpers
+# ---------------------------------------------------------------------------
+
+
 def _load_drive_root_id() -> str:
-    """
-    Read the shared Drive root folder ID from drive_config.yaml.
-    This is the folder that corresponds to repo_root/data on Drive.
-    """
+    """Read the shared Drive root folder ID from drive_config.yaml."""
     if not DRIVE_CONFIG_PATH.exists():
         raise FileNotFoundError(
             f"Missing drive_config.yaml at {DRIVE_CONFIG_PATH}. "
@@ -143,37 +160,29 @@ def _load_drive_root_id() -> str:
     return root_id
 
 
-def _get_drive_and_root():
-    """
-    Return a cached (GoogleDrive client, drive_root_folder_id) pair.
+def _get_drive_and_root() -> tuple[GoogleDrive, str]:
+    """Return a cached ``(GoogleDrive client, drive_root_folder_id)`` pair.
 
-    This:
-      - Loads client_secrets.json for OAuth config
-      - Loads cached pydrive_credentials.json if present
-      - Only calls LocalWebserverAuth() (browser) if credentials are missing
-        or expired, and then saves them for future use.
+    Loads OAuth credentials from *client_secrets.json*, caches them in
+    *pydrive_credentials.json*, and only opens the browser on the first run
+    or when the token expires.
     """
     global _DRIVE, _DRIVE_ROOT_ID
     if _DRIVE is not None and _DRIVE_ROOT_ID is not None:
         return _DRIVE, _DRIVE_ROOT_ID
 
     gauth = GoogleAuth()
-    # Configure OAuth client
     gauth.LoadClientConfigFile(str(CLIENT_SECRETS_PATH))
 
-    # Try to load cached credentials (no browser)
     if DRIVE_CREDENTIALS_PATH.exists():
         gauth.LoadCredentialsFile(str(DRIVE_CREDENTIALS_PATH))
 
     if gauth.credentials is None or gauth.access_token_expired:
-        # Only in this case do we actually open the browser
-        print("[data_io] Performing Google OAuth (one-time)...")
+        logger.info("Performing Google OAuth (one-time)...")
         gauth.LocalWebserverAuth()
-        # Cache credentials for later runs
         gauth.SaveCredentialsFile(str(DRIVE_CREDENTIALS_PATH))
     else:
-        # Use existing valid creds silently
-        print("[data_io] Using cached Google Drive credentials.")
+        logger.debug("Using cached Google Drive credentials.")
 
     drive = GoogleDrive(gauth)
     root_id = _load_drive_root_id()
@@ -183,12 +192,17 @@ def _get_drive_and_root():
     return _DRIVE, _DRIVE_ROOT_ID
 
 
-def upload_to_drive(local_path: Path) -> str:
-    """
-    Upload or update `local_path` under the shared Drive 'data/' tree,
-    mirroring the repo's data/ subfolders.
+# ---------------------------------------------------------------------------
+# Drive upload / existence / delete
+# ---------------------------------------------------------------------------
 
-    Returns the file_id of the uploaded Google Drive file.
+
+def upload_to_drive(local_path: Path) -> str:
+    """Upload (or update) *local_path* under the shared Drive ``data/`` tree.
+
+    The remote path mirrors the repo's ``data/`` subfolder structure.
+
+    Returns the Drive file ID of the uploaded file.
     """
     local_path = Path(local_path)
     if not local_path.exists():
@@ -197,15 +211,12 @@ def upload_to_drive(local_path: Path) -> str:
     rel = local_path.relative_to(REPO_ROOT)
     if not rel.parts or rel.parts[0] != "data":
         raise ValueError(
-            f"upload_to_drive currently only supports files under 'data/' "
-            f"(got: {rel})"
+            f"upload_to_drive only supports files under 'data/' (got: {rel})"
         )
 
     rel_under_data = rel.parts[1:]
     if not rel_under_data:
-        raise ValueError(
-            f"Unexpected path with no components under data/: {rel}"
-        )
+        raise ValueError(f"Unexpected path with no components under data/: {rel}")
 
     drive, root_id = _get_drive_and_root()
     parent_id = root_id
@@ -213,7 +224,6 @@ def upload_to_drive(local_path: Path) -> str:
     def _q_escape(s: str) -> str:
         return s.replace("'", "\\'")
 
-    # Create/find folder chain under Drive root
     for folder_name in rel_under_data[:-1]:
         folder_name_q = _q_escape(folder_name)
         query = (
@@ -236,41 +246,28 @@ def upload_to_drive(local_path: Path) -> str:
 
     filename = rel_under_data[-1]
     filename_q = _q_escape(filename)
-    query = (
-        f"'{parent_id}' in parents and "
-        f"title = '{filename_q}' and trashed=false"
-    )
+    query = f"'{parent_id}' in parents and title = '{filename_q}' and trashed=false"
     existing = drive.ListFile({"q": query}).GetList()
 
     if existing:
         gfile = existing[0]
-        print(f"[data_io] Updating existing Drive file for {rel}")
+        logger.info("Updating existing Drive file for %s", rel)
     else:
-        gfile = drive.CreateFile(
-            {"title": filename, "parents": [{"id": parent_id}]}
-        )
-        print(f"[data_io] Creating new Drive file for {rel}")
+        gfile = drive.CreateFile({"title": filename, "parents": [{"id": parent_id}]})
+        logger.info("Creating new Drive file for %s", rel)
 
     gfile.SetContentFile(str(local_path))
     gfile.Upload()
-    file_id = gfile["id"]
-    print(f"[data_io] Uploaded {rel} to Drive (file_id={file_id})")
+    file_id: str = gfile["id"]
+    logger.info("Uploaded %s to Drive (file_id=%s)", rel, file_id)
     return file_id
 
+
 def remote_file_exists_by_rel_path(rel_path: str) -> bool:
-    """
-    Check if a file with the given repo-relative path exists on Drive
-    under the shared 'data/' tree.
-
-    rel_path is something like: 'data/processed/Category/file.parquet'
-    or 'data/locks/03_user_features/All_Beauty.lock'
-    """
-    from pathlib import Path
-
+    """Return ``True`` if a file at *rel_path* exists on Drive."""
     drive, root_id = _get_drive_and_root()
     rel = Path(rel_path)
 
-    # Ensure path is anchored under 'data/...'
     parts = rel.parts
     if parts and parts[0] == "data":
         parts = parts[1:]
@@ -286,7 +283,6 @@ def remote_file_exists_by_rel_path(rel_path: str) -> bool:
     def _q_escape(s: str) -> str:
         return s.replace("'", "\\'")
 
-    # Walk down folder chain
     for folder_name in folder_parts:
         folder_name_q = _q_escape(folder_name)
         query = (
@@ -300,22 +296,13 @@ def remote_file_exists_by_rel_path(rel_path: str) -> bool:
         parent_id = flist[0]["id"]
 
     filename_q = _q_escape(filename)
-    query = (
-        f"'{parent_id}' in parents and "
-        f"title = '{filename_q}' and trashed=false"
-    )
+    query = f"'{parent_id}' in parents and title = '{filename_q}' and trashed=false"
     files = drive.ListFile({"q": query}).GetList()
     return bool(files)
 
 
 def delete_remote_by_rel_path(rel_path: str) -> None:
-    """
-    Delete (if present) a remote file at the given repo-relative path from Drive.
-
-    rel_path example: 'data/locks/03_user_features/All_Beauty.lock'
-    """
-    from pathlib import Path
-
+    """Delete a remote file at *rel_path* from Drive if it exists."""
     drive, root_id = _get_drive_and_root()
     rel = Path(rel_path)
 
@@ -334,7 +321,6 @@ def delete_remote_by_rel_path(rel_path: str) -> None:
     def _q_escape(s: str) -> str:
         return s.replace("'", "\\'")
 
-    # Walk folders
     for folder_name in folder_parts:
         folder_name_q = _q_escape(folder_name)
         query = (
@@ -344,14 +330,11 @@ def delete_remote_by_rel_path(rel_path: str) -> None:
         )
         flist = drive.ListFile({"q": query}).GetList()
         if not flist:
-            return  # folder chain missing -> nothing to delete
+            return
         parent_id = flist[0]["id"]
 
     filename_q = _q_escape(filename)
-    query = (
-        f"'{parent_id}' in parents and "
-        f"title = '{filename_q}' and trashed=false"
-    )
+    query = f"'{parent_id}' in parents and title = '{filename_q}' and trashed=false"
     files = drive.ListFile({"q": query}).GetList()
     for f in files:
         f.Delete()

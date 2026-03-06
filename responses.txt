@@ -1,0 +1,28 @@
+{
+  "submission_374567659": 
+    [(4, "Explained how to evaluate model, baselines/comparisons, and validity"),
+     (4, "Explained where the dataset came from, how they preprocessed the data, and showed some graphs"),
+     (4, "Task formulation as ML problem clearly stated. Clear explanation of design choices."),
+     (4, "Explained evaluation code, and supported evaulations with baselines"),
+     (4, "Showed examples of where the dataset was being used elsewhere and how its application was a bit diff.")],
+  "submission_374553931": 
+    [(4, "Explained how to evaluate model, baselines/comparisons, and validity"),
+     (4, "Explained where the dataset came from and showed some graphs with good analysis. No code / methodolgy however"),
+     (4, "Task formulation as ML problem clearly stated. Clear explanation of design choices."),
+     (4, "Explained evaluation stratergy and code, and supported evaulations with baselines"),
+     (5, "Deep analysis of the related works")],
+  "submission_374665957": 
+    [(2, "baselines/comparisons not too clearly stated, video only 10 mins as well"),
+     (3, "Didn't explain where data came from, rudementary code walk through of books dataset eda"),
+     (3, "Task formulation as ML problem clearly stated. Shallow explanation of modeling"),
+     (3, "Shallow explaination of evaluation stratergy and code"),
+     (3, "Shallow research of related works, only one works cited")],
+  "submission_374660953": 
+    [(4, "Explained how to evaluate model, baselines/comparisons, and validity"),
+     (4, "Proper EDA, deep analysis, didn't show how they derived the data though"),
+     (4, "Task formulation as ML problem clearly stated. Clear explanation of design choices."),
+     (4, "Explained evaluation code, and supported evaulations with baselines"),
+     (3, "Showed examples of how dataset was being used but not concrete examples/citations")],
+
+  "ranking": ["submission_374553931", "submission_374567659", "submission_374660953", "submission_374665957"]
+}

@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+          pip install -e .
+
+      - name: Check formatting (black)
+        run: black --check src/ tests/ scripts/
+
+      - name: Check import ordering (isort)
+        run: isort --check-only src/ tests/ scripts/
+
+      - name: Lint (flake8)
+        run: flake8 src/ tests/ scripts/ --max-line-length=100
+
+      - name: Type check (mypy)
+        run: mypy src/
+
+      - name: Run tests
+        run: pytest tests/ --cov=src/amazon_next_category --cov-report=term-missing -v

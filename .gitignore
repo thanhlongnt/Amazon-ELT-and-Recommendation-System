@@ -15,3 +15,18 @@ pydrive_credentials.json
 data_registry.yaml
 output.txt
 */explore_data.py
+
+# Build / packaging
+*.egg-info/
+dist/
+build/
+
+# Dev tool caches
+.mypy_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Environment
+.env
+.DS_Store

@@ -1,66 +1,158 @@
-## 🚀 Pipeline Summary: Amazon Review Data Processing
+![CI](https://github.com/thanhlongnt/cse158_asgn2/actions/workflows/ci.yml/badge.svg)
+![Python](https://img.shields.io/badge/python-3.12-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-The pipeline transforms raw, compressed Amazon review and metadata files for various categories into a cleaned, feature-engineered dataset suitable for sequence modeling and predictive analytics.
+# Amazon Next-Category Prediction
 
-### 1. 🛍️ Preprocess Amazon-Reviews-2023 Categories (Script 01)
-This initial stage focuses on processing raw data for each Amazon category individually.
-
-* **Input:** Raw `.jsonl.gz` review and meta files (e.g., from UCSD or Google Drive).
-* **Key Operations:**
-    * **Data Ingestion:** Streams and parses the gzipped JSON Lines files.
-    * **User Counting:** Computes the total number of reviews/purchases for every user within that category.
-    * **Exploratory Data Analysis (EDA):** Calculates basic statistics (histograms) for review ratings, helpful votes, and per-user purchase counts.
-* **Outputs:**
-    * `user_counts_<Category>.parquet`: Per-user purchase counts.
-    * `review_stats_<Category>.json`: Summary statistics (review count, user count, verified purchases).
-    * `meta_stats_<Category>.json`: Item-level statistics (item count, price mean).
-    * **Visualization:** Histograms (`*_hist_<Category>.png`) for ratings, helpful votes, and user purchases.
+Predict the **next Amazon purchase category** from a user's historical review sequence.
+Built on the [Amazon Reviews 2023](https://amazon-reviews-2023.github.io/) dataset (McAuley Lab, UCSD).
 
 ---
 
-### 2. 🌍 Global User Collation + User Importance Scoring (Script 02)
-This stage aggregates the per-category user data to identify and score the most influential and diverse users globally.
+## Overview
 
-* **Input:** `user_counts_<Category>.parquet` files from all processed categories.
-* **Key Operations:**
-    * **Global Aggregation:** Combines all user counts into a single user-category matrix, calculating **total purchases** and **distinct categories** per user.
-    * **Diversity Scoring:** Computes **entropy** (a measure of diversity across categories) and **normalized entropy**.
-    * **Importance Scoring:** Calculates a **user importance score** based on the formula:
-       $$ \text{importance} = \text{total\_purchases} \times (1 + \text{norm\_entropy})$$
-    * **Top User Extraction:** Filters users who meet strict criteria (e.g., importance $\ge$ 95th percentile, $\ge 3$ distinct categories, $\ge 3$ total purchases).
-* **Outputs:**
-    * `user_total_purchases_hist.png` and `user_distinct_categories_hist.png`.
-    * `top_users.parquet`: A table of the extracted top users with their calculated importance and diversity scores.
+Given a user's ordered purchase history up to time *t*, predict the category of their next purchase at *t+1*.
 
----
+### Pipeline
 
-### 3. 👤 Extract Top-User Filtered Features (Script 03)
-This stage re-scans the raw reviews, but only retains and aggregates data for the identified **top users**.
+| Step | Module | Description |
+|------|--------|-------------|
+| 1 | `pipeline.build_user_counts` | Stream raw `.jsonl.gz` reviews → per-user purchase counts |
+| 2 | `pipeline.filter_users` | Aggregate globally, score by importance, extract top users |
+| 3 | `pipeline.extract_features` | Filter reviews to top users, produce per-review/user/item features |
+| 4 | `pipeline.create_sequences` | Shard + build temporal sequence samples (prefix → target category) |
 
-* **Input:** `top_users.parquet` (global top users) and the raw review/meta `.jsonl.gz` files (per category).
-* **Key Operations:**
-    * **Review Filtering & Streaming:** Streams the raw reviews, keeping only those written by a global top user. It joins these filtered reviews with item metadata (like item average rating).
-    * **Per-Review Data Generation:** Creates a detailed feature table for every filtered review.
-    * **Aggregation:** Computes aggregate features for both **users** and **items** *based only on the top-user reviews*.
-* **Outputs (Per Category):**
-    * `top_user_reviews_<Category>.parquet`: Filtered, per-review data with item meta.
-    * `top_user_features_<Category>.parquet`: Aggregated features per top user (e.g., average rating, total reviews *in this category*).
-    * `top_item_features_<Category>.parquet`: Aggregated features per item (e.g., number of unique top-user reviewers).
-    * **Visualization:** Rating and helpful vote histograms for the *top-user* reviews.
+### Models
+
+| Module | Algorithm |
+|--------|-----------|
+| `models.logistic_regression` | Multinomial logistic regression (lbfgs) |
+| `models.gradient_boosting` | HistGradientBoostingClassifier with random-search tuning |
+| `models.tree_models` | Decision tree, random forest, linear SVM |
 
 ---
 
-### 4. 🔗 Create Temporal Training Data (Script 04)
-The final stage transforms the filtered review data into a sequential, temporal dataset for predicting the next purchase category.
+## Installation
 
-* **Input:** `top_user_reviews_<Category>.parquet` and `top_user_features_<Category>.parquet` (from all successful categories).
-* **Key Operations:**
-    * **Sharding:** Reviews and user features are sharded by `user_id` to enable memory-efficient, parallel processing.
-    * **Sequence Generation:** For each user, reviews are chronologically sorted. Training samples are created at each time step $i$ (prefix) to **predict the category of the next purchase** at time $i+1$ (label).
-    * **Feature Engineering (Prefix-Based):**
-        * **Static Features:** Global user importance, entropy.
-        * **Sequential Features (Prefix):** Length, timespan, average rating/helpful votes, features of the *last* purchase, indices of the last $N$ categories, and counts of categories in the prefix.
-    * **Baseline Computation:** Calculates simple baselines (Global Majority, Per-User Majority, Last Category) for comparison.
-* **Outputs:**
-    * `sequence_training_samples.parquet`: The final, global training dataset containing all engineered features and the target category index.
-    * Temporary directories for sharded data (`data/tmp/`).
+```bash
+# 1. Clone the repository
+git clone https://github.com/thanhlongnt/cse158_asgn2.git
+cd cse158_asgn2
+
+# 2. Create a virtual environment (Python 3.12+)
+python -m venv .venv
+source .venv/bin/activate
+
+# 3. Install the package (editable mode)
+pip install -e .
+
+# 4. (Optional) install dev dependencies
+pip install -r requirements-dev.txt
+```
+
+---
+
+## Usage
+
+### Run the full pipeline
+
+```bash
+# Step 1 – build per-category user counts
+python -m amazon_next_category.pipeline.build_user_counts
+
+# Step 2 – filter important users
+python -m amazon_next_category.pipeline.filter_users
+
+# Step 3 – extract top-user features
+python -m amazon_next_category.pipeline.extract_features
+
+# Step 4 – create sequence training samples
+python -m amazon_next_category.pipeline.create_sequences
+
+# Load the dataset (CLI entry point)
+run-pipeline          # or: python scripts/run_pipeline.py
+```
+
+### Train a model
+
+```bash
+python -m amazon_next_category.models.gradient_boosting
+python -m amazon_next_category.models.logistic_regression
+python -m amazon_next_category.models.tree_models
+```
+
+### Explore the dataset
+
+```bash
+python scripts/explore_data.py --n 5
+```
+
+---
+
+## Project Structure
+
+```
+cse158_asgn2/
+├── src/
+│   └── amazon_next_category/
+│       ├── io/           # Data registry + Google Drive sync
+│       ├── pipeline/     # Steps 1–4: raw → sequence dataset
+│       ├── models/       # Logistic regression, HistGBM, tree models
+│       └── utils/        # config.py (constants)
+├── scripts/              # CLI entry points
+├── tests/                # Unit tests
+├── notebooks/            # analysis.ipynb
+├── configs/              # data_registry.yaml, drive_config.yaml
+├── pyproject.toml
+├── requirements.txt
+└── requirements-dev.txt
+```
+
+---
+
+## Evaluation
+
+Metrics reported for each model on the held-out test split:
+
+- **Accuracy** — primary metric
+- **Top-3 accuracy** — true category within top-3 predictions
+- **Classification report** — per-class precision / recall / F1
+
+Baselines computed on the validation split:
+
+| Baseline | Description |
+|----------|-------------|
+| Global majority | Always predict the most-frequent training category |
+| Last-category | Predict the same category as the user's last purchase |
+| Prefix-most-frequent | Predict the user's most frequent category so far |
+
+---
+
+## Development
+
+```bash
+# Run tests
+pytest tests/ -v
+
+# Format
+black src/ tests/ scripts/
+
+# Lint
+flake8 src/ tests/ scripts/ --max-line-length=100
+
+# Type check
+mypy src/
+
+# Install pre-commit hooks
+pre-commit install
+```
+
+---
+
+## Predictive Task Details
+
+- **Task** – Predict category at *t+1* given purchase prefix up to *t*.
+- **Split** – User-level (hash-based shard split) to prevent leakage.
+- **Features** – Static user importance/entropy, prefix length/timespan, last-N category indices, prefix category counts, last purchase rating/helpful/item-avg.
+
+See `notebooks/analysis.ipynb` for a full exploratory analysis and results.

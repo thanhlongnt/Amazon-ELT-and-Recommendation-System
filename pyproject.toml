@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "amazon-next-category"
+version = "0.1.0"
+description = "Predict the next Amazon purchase category from a user's historical review sequence"
+requires-python = ">=3.12"
+dependencies = [
+    "pandas>=2.3.3",
+    "numpy>=2.3.5",
+    "scikit-learn>=1.7.2",
+    "PyDrive2>=1.21.3",
+    "gdown>=5.2.0",
+    "PyYAML>=6.0.3",
+    "pyarrow>=22.0.0",
+    "matplotlib>=3.10.7",
+    "requests>=2.32.5",
+    "tqdm>=4.67.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "black>=24.0",
+    "isort>=5.13",
+    "mypy>=1.8",
+    "flake8>=7.0",
+    "pre-commit>=3.6",
+]
+
+[project.scripts]
+run-pipeline = "amazon_next_category.pipeline.run_pipeline:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+strict = false
+ignore_missing_imports = true
+python_version = "3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+log_cli = true
+log_cli_level = "INFO"
