@@ -20,7 +20,7 @@ Given a user's ordered purchase history up to time *t*, predict the category of 
 | 1 | `pipeline.build_user_counts` | Stream raw `.jsonl.gz` reviews → per-user purchase counts |
 | 2 | `pipeline.filter_users` | Aggregate globally, score by importance, extract top users |
 | 3 | `pipeline.extract_features` | Filter reviews to top users, produce per-review/user/item features |
-| 4 | `pipeline.create_sequences` | Shard + build temporal sequence samples (prefix → target category) |
+| 4 | `pipeline.create_sequences` | Shard + build temporal sequence samples (prefix → target category), with bounded backpressure and JSON-checkpoint resumability |
 
 ### Models
 
@@ -81,7 +81,29 @@ python -m amazon_next_category.pipeline.extract_features
 
 # Step 4 – create sequence training samples
 python -m amazon_next_category.pipeline.create_sequences
+
+# Step 4 – resume after a crash (skips already-completed shards)
+python -m amazon_next_category.pipeline.create_sequences \
+    --skip-user-sharding --skip-review-sharding \
+    --resume-phase2
+
+# Step 4 – custom checkpoint file location
+python -m amazon_next_category.pipeline.create_sequences \
+    --skip-user-sharding --skip-review-sharding \
+    --resume-phase2 --checkpoint-file /tmp/my_progress.json
 ```
+
+#### Step 4 options reference
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--resume-phase2` | off | Skip shards already recorded in the checkpoint; safe to pass on first run |
+| `--checkpoint-file PATH` | `<per-shard-output-dir>/progress.json` | Custom path for the JSON progress checkpoint |
+| `--per-shard-output-dir PATH` | `data/global/sequence_samples_by_shard` | Directory for per-shard Parquet outputs and the default checkpoint |
+| `--skip-user-sharding` | off | Reuse existing user-shard temp files (Phase 0) |
+| `--skip-review-sharding` | off | Reuse existing review-shard temp files (Phase 1) |
+
+**Crash-safe workflow:** if the process is killed mid-run, restart with `--skip-user-sharding --skip-review-sharding --resume-phase2`. The checkpoint (`progress.json`) records every completed shard; the restart will log `Resuming: N/256 shards already complete` and skip those shards, reprocessing only the remainder.
 
 ### Train a model
 
@@ -139,9 +161,9 @@ cse158_asgn2/
 ├── src/
 │   └── amazon_next_category/
 │       ├── io/           # Data registry + Google Drive sync
-│       ├── pipeline/     # Steps 1–4: raw → sequence dataset
+│       ├── pipeline/     # Steps 1–4: raw → sequence dataset; pipeline_utils.py, run_pipeline.py
 │       ├── models/       # Logistic regression, HistGBM, tree models
-│       └── utils/        # config.py (constants), model_io.py (shared shard helpers)
+│       └── utils/        # config.py (constants), model_io.py (shard helpers), mlflow_utils.py
 ├── scripts/              # CLI entry points
 ├── tests/                # Unit tests
 ├── notebooks/            # analysis.ipynb
@@ -197,5 +219,3 @@ pre-commit install
 - **Task** – Predict category at *t+1* given purchase prefix up to *t*.
 - **Split** – User-level (hash-based shard split) to prevent leakage.
 - **Features** – Static user importance/entropy, prefix length/timespan, last-N category indices, prefix category counts, last purchase rating/helpful/item-avg.
-
-See `notebooks/analysis.ipynb` for a full exploratory analysis and results.

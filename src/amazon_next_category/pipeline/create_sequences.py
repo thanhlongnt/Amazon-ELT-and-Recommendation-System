@@ -15,11 +15,13 @@ from __future__ import annotations
 
 import argparse
 import gc
+import json
 import logging
 import os
 import shutil
+import threading
 from collections import Counter, defaultdict
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from typing import Dict, List, Optional
 
 import numpy as np
@@ -30,6 +32,36 @@ import amazon_next_category.io.data_io as data_io
 from amazon_next_category.utils.config import N_SHARDS
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Shard progress tracker (JSON checkpoint for resumability)
+# ---------------------------------------------------------------------------
+
+
+class ShardProgressTracker:
+    """Thread-safe JSON checkpoint: tracks which shards have been completed."""
+
+    def __init__(self, checkpoint_path: str) -> None:
+        self.checkpoint_path = checkpoint_path
+        self._done: set[str] = set()
+        self._lock = threading.Lock()
+        self._load()
+
+    def _load(self) -> None:
+        if os.path.exists(self.checkpoint_path):
+            with open(self.checkpoint_path) as f:
+                self._done = set(json.load(f).get("completed_shards", []))
+
+    def is_done(self, shard_name: str) -> bool:
+        with self._lock:
+            return shard_name in self._done
+
+    def mark_done(self, shard_name: str) -> None:
+        with self._lock:
+            self._done.add(shard_name)
+            with open(self.checkpoint_path, "w") as f:
+                json.dump({"completed_shards": list(self._done)}, f)
 
 
 # ---------------------------------------------------------------------------
@@ -433,18 +465,16 @@ def _process_shard_worker(args: tuple) -> "BaselineStats":
     shard_output_path = os.path.join(per_shard_output_dir, f"sequence_{shard_name}.parquet")
     partial_stats = BaselineStats()
 
-    if os.path.exists(shard_output_path) and resume_phase2:
-        pf = pq.ParquetFile(shard_output_path)
-        col_names = pf.schema.names
-        has_prefix_counts = any(c.startswith("prefix_cat_count_") for c in col_names)
-        if disable_prefix_cat_counts or has_prefix_counts:
-            if not disable_baselines:
-                existing_df = pf.read().to_pandas()
-                partial_stats.update_from_shard(existing_df)
-                del existing_df
-                gc.collect()
-            return partial_stats
-        worker_logger.info("Shard %s lacks prefix_cat_count_*; rebuilding.", shard_name)
+    # Resume logic is handled by the caller (main) via ShardProgressTracker.
+    # If resume_phase2 is passed True here, it's a fallback for direct invocations;
+    # load existing stats and return early.
+    if resume_phase2 and os.path.exists(shard_output_path):
+        if not disable_baselines:
+            existing_df = pq.read_table(shard_output_path).to_pandas()
+            partial_stats.update_from_shard(existing_df)
+            del existing_df
+            gc.collect()
+        return partial_stats
 
     rfiles = [os.path.join(shard_dir, f) for f in os.listdir(shard_dir) if f.endswith(".parquet")]
     if not rfiles:
@@ -531,6 +561,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default="data/global/sequence_samples_by_shard",
     )
     parser.add_argument("--resume-phase2", action="store_true")
+    parser.add_argument(
+        "--checkpoint-file",
+        type=str,
+        default=None,
+        help="Path to JSON checkpoint file (default: <per-shard-output-dir>/progress.json)",
+    )
     return parser
 
 
@@ -599,39 +635,72 @@ def main() -> None:
         raise RuntimeError("No shard directories found; sharding may have failed.")
 
     os.makedirs(args.per_shard_output_dir, exist_ok=True)
+
+    checkpoint_path = args.checkpoint_file or os.path.join(
+        args.per_shard_output_dir, "progress.json"
+    )
+    progress = ShardProgressTracker(checkpoint_path)
+    if args.resume_phase2:
+        n_already = sum(1 for s in shard_dirs if progress.is_done(os.path.basename(s)))
+        logger.info("Resuming: %d/%d shards already complete.", n_already, num_shards)
+
     baseline_stats = BaselineStats()
+    max_workers = min(os.cpu_count() or 4, 16)
+    MAX_IN_FLIGHT = max_workers * 2  # backpressure: max shards queued/running
 
     logger.info("=== Phase 2: Building sequence samples per shard (parallel) ===")
-    worker_args_list = [
-        (
-            shard_dir,
-            args.per_shard_output_dir,
-            args.tmp_user_dir,
-            category_index,
-            args.n_latest,
-            args.min_prefix,
-            args.disable_prefix_cat_counts,
-            args.sample_every_k_prefix,
-            args.resume_phase2,
-            args.disable_baselines,
-        )
-        for shard_dir in shard_dirs
-    ]
-    max_workers = min(os.cpu_count() or 4, 16)
     logger.info("Processing %d shards with up to %d workers.", num_shards, max_workers)
+
+    in_flight: dict = {}  # future -> shard_name
+    pbar = tqdm(total=num_shards, desc="Shards")
+    pending = list(shard_dirs)
+
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
-        futures = {
-            executor.submit(_process_shard_worker, wargs): wargs[0] for wargs in worker_args_list
-        }
-        for f in tqdm(as_completed(futures), total=num_shards, desc="Shards"):
-            partial_stats = f.result()  # re-raises exceptions from worker
-            if not args.disable_baselines:
-                baseline_stats.global_counts.update(partial_stats.global_counts)
-                for uid, counts in partial_stats.user_label_counts.items():
-                    for label_idx, cnt in counts.items():
-                        baseline_stats.user_label_counts[uid][label_idx] += cnt
-                baseline_stats.total_samples += partial_stats.total_samples
-                baseline_stats.last_equal_correct += partial_stats.last_equal_correct
+        while pending or in_flight:
+            # --- PRODUCE: submit up to MAX_IN_FLIGHT futures ---
+            while pending and len(in_flight) < MAX_IN_FLIGHT:
+                shard_dir = pending.pop(0)
+                shard_name = os.path.basename(shard_dir)
+
+                if args.resume_phase2 and progress.is_done(shard_name):
+                    logger.debug("Skipping completed shard %s", shard_name)
+                    pbar.update(1)
+                    continue
+
+                wargs = (
+                    shard_dir,
+                    args.per_shard_output_dir,
+                    args.tmp_user_dir,
+                    category_index,
+                    args.n_latest,
+                    args.min_prefix,
+                    args.disable_prefix_cat_counts,
+                    args.sample_every_k_prefix,
+                    False,  # resume_phase2 handled in main; pass False to worker
+                    args.disable_baselines,
+                )
+                future = executor.submit(_process_shard_worker, wargs)
+                in_flight[future] = shard_name
+
+            if not in_flight:
+                break
+
+            # --- CONSUME: wait for at least one to finish ---
+            done_set, _ = wait(in_flight, return_when=FIRST_COMPLETED)
+            for f in done_set:
+                shard_name = in_flight.pop(f)
+                partial_stats = f.result()  # re-raises exceptions from worker
+                progress.mark_done(shard_name)
+                if not args.disable_baselines:
+                    baseline_stats.global_counts.update(partial_stats.global_counts)
+                    for uid, counts in partial_stats.user_label_counts.items():
+                        for label_idx, cnt in counts.items():
+                            baseline_stats.user_label_counts[uid][label_idx] += cnt
+                    baseline_stats.total_samples += partial_stats.total_samples
+                    baseline_stats.last_equal_correct += partial_stats.last_equal_correct
+                pbar.update(1)
+
+    pbar.close()
 
     # Combine
     shard_files = sorted(
